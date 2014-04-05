@@ -1,9 +1,10 @@
 <!DOCTYPE html>
 <meta charset="utf-8">
 <style>
+
 body{
 	width:960px;
-	margin:100px auto;
+	margin:10px auto;
 }
 circle{
   fill:white;
@@ -13,6 +14,14 @@ circle{
 line{
   stroke:grey;
   stroke-width:3px;
+}
+.incRect{
+	stroke:grey;
+	shape-rendering:crispEdges;
+}
+#incMatx text{
+	text-anchor:middle;
+	cursor:default;
 }
 #treesvg g text:hover, #treesvg g circle:hover{
 	cursor:pointer;
@@ -39,14 +48,23 @@ line{
 }
 </style>
 <body>
+<div>
+<p>Build tree by clicking on vertices. Once the desired tree is built, click on 'Generate labels' button to find all graceful labels. 
+The labels shown are unique with respect to incidence matrix. This reduces many trivial variations in labels, for example if two branches from a 
+vertex are isomorphic, then their labels can be swapped to get another graceful label. Also if (i) is a gaceful labeling, so is (n-i), 
+one of these labelings have 0 and n-1 adjacent. Only labels where 0 and n-1 are adjacent are shown. </p>
+</div>
 <script src="http://d3js.org/d3.v3.min.js"></script>
+
 <script>
 function tree(){
-	var svgW=958, svgH =460, vRad=12, tree={cx:svgW/2, cy:30, w:40, h:70};
+	var svgW=958, svgH =460, vRad=12, tree={cx:300, cy:30, w:40, h:70};
 	tree.vis={v:0, l:'?', p:{x:tree.cx, y:tree.cy},c:[]};	
 	tree.size=1;
 	tree.glabels =[];
-		
+	tree.incMatx =[];
+	tree.incX=500, tree.incY=30, tree.incS=20;
+	
 	tree.getVertices =  function(){
 		var v =[];
 		function getVertices(t,f){	
@@ -76,9 +94,14 @@ function tree(){
 		reposition(tree.vis);
 		if(tree.glabels.length != 0){
 			tree.glabels =[]
-			relabel(d3.range(0, tree.size).map(function(d){ return '?';}));
+			relabel(
+				{
+					lbl:d3.range(0, tree.size).map(function(d){ return '?';}), 
+					incMatx:d3.range(0,tree.size-1).map(function(){ return 0;})
+				});
 			d3.select("#labelnav").style('visibility','hidden');
 		}
+		else tree.incMatx = d3.range(0,tree.size-1).map(function(){ return 0;});
 		redraw();
 	}
 	
@@ -86,7 +109,17 @@ function tree(){
 		tree.glabels =[], v = tree.getVertices();
 		var vlbls =[], elbls=[];
 		gracefulLbl = function(c){
-			if(c == tree.size) { var lbl = vlbls.map(function(_){return _;}); tree.glabels.push(lbl); return; }
+			if(c == tree.size) { 
+				var lbl = {lbl:vlbls.map(function(_){return _;}) }; 
+				relabel(lbl);
+				updateIncMatx();
+				var incMatx = tree.incMatx.map(function(_){ return _; });
+				if( (tree.incMatx[0] & 2)>> 1 ==1 && tree.glabels.every(function(d){ return d.incMatx.toString() != incMatx.toString(); })){
+					lbl.incMatx = incMatx;
+					tree.glabels.push(lbl); 
+				}
+				return; 
+			}
 			d3.range(0, tree.size)
 				.filter(function(d){ return (vlbls.indexOf(d) ==-1) &&(elbls.indexOf(Math.abs(vlbls[v[c].f.v] - d)) == -1);})
 				.forEach(function(d){  
@@ -103,6 +136,22 @@ function tree(){
 		d3.select("#labelnav").style('visibility','visible');
 	}
 	
+	updateIncMatx = function(){
+		var n = tree.size-1;
+		tree.incMatx = d3.range(0,tree.size-1).map(function(){return 0;});
+		updateIncMatxl = function(t){
+			t.c.forEach(function(c){
+				t.l < c.l ? tree.incMatx[t.l]= tree.incMatx[t.l] | (1<<(n-c.l)) : tree.incMatx[c.l]= tree.incMatx[c.l] | (1<<(n-t.l));
+				updateIncMatxl(c);
+			});
+		}
+		updateIncMatxl(tree.vis);		
+	}
+	
+	getIncMatxRow = function(i){
+		return d3.range(0,tree.size-1-i).map(function(d,j){ var n=tree.size-2-i-j; return (tree.incMatx[i] & 1<<n)>>n; });
+	}
+	
 	tree.showLabel = function(i){
 		if(i >tree.glabels.length || i < 1){ alert('invalid label position'); return; } 
 		
@@ -113,8 +162,9 @@ function tree(){
 	}
 	
 	relabel = function(lbl){
-		function relbl(t){	t.l=lbl[t.v];	t.c.forEach(relbl);		}
+		function relbl(t){	t.l=lbl.lbl[t.v];	t.c.forEach(relbl);		}
 		relbl(tree.vis);
+		tree.incMatx = lbl.incMatx;
 	}
 	
 	redraw = function(){
@@ -157,6 +207,25 @@ function tree(){
 		elabels.enter().append('text')
 			.attr('x',function(d){ return (d.p1.x+d.p2.x)/2+(d.p1.x < d.p2.x? 8: -8);}).attr('y',function(d){ return (d.p1.y+d.p2.y)/2;})
 			.text(function(d){return tree.glabels.length==0? '': Math.abs(d.l1 -d.l2);});	
+			
+		
+		d3.select('#incMatx').selectAll(".incrow").data(tree.incMatx)
+			.enter().append('g').attr('class','incrow');
+			
+		d3.select('#incMatx').selectAll(".incrow").selectAll('.incRect')
+			.data(function(d,i){ return getIncMatxRow(i).map(function(v,j){return {y:i, x:j, f:v};})})
+			.enter().append('rect').attr('class','incRect');
+			
+		d3.select('#incMatx').selectAll('.incRect')
+			.attr('x',function(d,i){ return (d.x+d.y)*tree.incS;}).attr('y',function(d,i){ return d.y*tree.incS;})
+			.attr('width',function(){ return tree.incS;}).attr('height',function(){ return tree.incS;})
+			.attr('fill',function(d){ return d.f == 1? 'black':'white'});
+			
+		d3.select("#incMatx").selectAll('.incrowlabel').data(d3.range(0,tree.size)).enter()
+			.append('text').attr('class','incrowlabel');
+			
+		d3.select("#incMatx").selectAll('.incrowlabel').text(function(d){ return d;})
+			.attr('x',function(d,i){ return (i-0.5)*tree.incS}).attr('y',function(d,i){ return (i+0.8)*tree.incS});
 	}
 	
 	getLeafCount = function(_){
@@ -177,7 +246,7 @@ function tree(){
 	initialize = function(){
 		d3.select("body").append("div").attr('id','navdiv');
 		
-		d3.select("#navdiv").append("button").attr('type','button').text('Generate All graceful labels')
+		d3.select("#navdiv").append("button").attr('type','button').text('Generate labels')
 			.on('click',function(d){return tree.gracefulLabels();});
 		
 		d3.select("#navdiv").append("nav").attr('id','labelnav').style('display','inline-block').style('visibility','hidden');
@@ -190,7 +259,7 @@ function tree(){
 		d3.select("#labelnav").append("button").attr('type','button').text('>').attr('id','nextlabel')
 			.on('click',function(){return tree.showLabel(tree.currLbl == tree.glabels.length? 1: tree.currLbl+1);});			
 						
-		d3.select("body").append("svg").attr('id','treesvg').attr("width", svgW).attr("height", svgH);
+		d3.select("body").append("svg").attr("width", svgW).attr("height", svgH).attr('id','treesvg');
 
 		d3.select("#treesvg").append('g').attr('id','g_lines').selectAll('line').data(tree.getEdges()).enter().append('line')
 			.attr('x1',function(d){ return d.p1.x;}).attr('y1',function(d){ return d.p1.y;})
@@ -208,6 +277,14 @@ function tree(){
 			.attr('x',function(d){ return (d.p1.x+d.p2.x)/2+(d.p1.x < d.p2.x? 8: -8);}).attr('y',function(d){ return (d.p1.y+d.p2.y)/2;})
 			.text(function(d){return tree.glabels.length==0? '': Math.abs(d.l1 -d.l2);});	
 			
+		d3.select("body").select("svg").append('g').attr('transform',function(){ return 'translate('+tree.incX+','+tree.incY+')';})
+			.attr('id','incMatx').selectAll('.incrow')
+			.data(tree.incMatx.map(function(d,i){ return {i:i, r:d};})).enter().append('g').attr('class','incrow');
+
+		d3.select("#incMatx").selectAll('.incrowlabel').data(d3.range(0,tree.size)).enter()
+			.append('text').attr('class','incrowlabel').text(function(d){ return d;})
+			.attr('x',function(d,i){ return (i-0.5)*tree.incS}).attr('y',function(d,i){ return (i+.8)*tree.incS});
+		
 		tree.addLeaf(0);
 		tree.addLeaf(0);
 	}
