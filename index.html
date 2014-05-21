@@ -3,9 +3,9 @@
 <!-- Derived from the "Graceful Tree Conjecture" by NPashaP @ https://gist.github.com/NPashaP/7683252 -->
 <head>
 <meta charset="utf-8" />
+<!-- This is for the trash bin icon. -->
 <link href="http://netdna.bootstrapcdn.com/font-awesome/4.1.0/css/font-awesome.min.css" rel="stylesheet" />
 <style>
-
 .oval-box {
   background: white;
   padding: 0.25em;
@@ -32,37 +32,31 @@
 	-o-user-select: none;
 }
 
-circle{
+/*circle{
   fill:white;
   stroke:steelblue;  
   stroke-width:2px;
-}
+}*/
 line{
   stroke:grey;
   stroke-width:3px;
 }
-.incRect{
+/*.incRect{
 	stroke:grey;
 	shape-rendering:crispEdges;
 }
 #incMatx text{
 	text-anchor:middle;
 	cursor:default;
-}
+}*/
 #treesvg g text:hover, #treesvg g circle:hover{
 	cursor:pointer;
-}
-#navdiv{
-	background:#555;
 }
 #treesvg{
 	/*border:1px solid grey;*/
 }
 #labelpos{
 	color:white;
-}
-#navdiv button, #navdiv textarea{
-	vertical-align:middle;
 }
 #g_labels text{
 	text-anchor:middle;
@@ -76,12 +70,14 @@ line{
 </head>
 <body>
 <div>
-<p>
-	Drag &amp; drop a node to create a child node. 
-	Double click on nodes to edit their contents. 
-	Rich text formatting is supported with keyboard shortcuts.
-	This demo really works best in Chrome.
-</p>
+<h1> Instructions </h1>
+<em>Note: This demo really works best in Chrome. </em>
+<ul>
+	<li> Drag a node <em>down</em> to <strong>add</strong> a child node. </li>
+	<li> <em>Double click</em> on nodes to <strong>edit</strong> its contents. Rich HTML content is supported via keyboard shortcuts (Ctrl+B for bold, etc) or by pasting text or images from other webpages.</li>
+	<li> Drag a node sideways to re-order or <strong>move</strong> it. </li>
+	<li> Drag a node to the <em>trash</em> to <strong>delete</strong> it. </li>
+</ul>
 </div>
 <div id="main" style="position:relative">
 <i class="fa fa-2x fa-trash-o" style="position:absolute; left:0px, top:0px;"></i>
@@ -121,7 +117,8 @@ function tree(){
 	}
 
 	// This function takes in an id number.
-	tree.removeLeaf = function(v){
+	tree.removeNode = function(v){
+		// This function takes in a tree object.
 		function deleteDivs (t) {
 			d3.select('#node'+t.v).remove()
 			d3.select('#edge'+t.v).remove()
@@ -134,26 +131,24 @@ function tree(){
 		}
 
 		// This function takes in a tree object.
-		function removeLeafRec (t) {
+		function removeNodeRec (t) {
 			for (var i = t.c.length - 1; i >= 0; i--) {
 				d = t.c[i];
 				if (d.v==v) {
 					t.c.splice(i,1);
 					deleteDivs(d);
-					// d3.select('#node'+v).remove()
-					// d3.select('#edge'+v).remove()
 					return 1;
 				}
 			};
 			// If we didn't find and remove it this go round, search all it's children
 			for (var i = t.c.length - 1; i >= 0; i--) {
-				if (removeLeafRec(t.c[i])) {
+				if (removeNodeRec(t.c[i])) {
 					return 1;
 				}
 			};
 			return 0;
 		}
-		removeLeafRec(tree.vis);
+		removeNodeRec(tree.vis);
 		redraw();
 		reposition(tree.vis);
 		alignLeft(tree.vis);
@@ -419,7 +414,7 @@ function tree(){
 		$(document).on('input','.oval-box',function(e){reposition(tree.vis); redraw(); alignLeft(tree.vis); return true});
 		$(document).on('click','.oval-box',function(e){$(this).attr('contenteditable','true'); return true;});
 		$(document).on('blur mouseout','.oval-box',function(e){$(this).attr('contenteditable','false'); return true;});
-		$(document).on('drop','.fa-trash-o',function(e){e.preventDefault(); if (tree.dragged !== null) {tree.removeLeaf(tree.dragged);};});
+		$(document).on('drop','.fa-trash-o',function(e){e.preventDefault(); if (tree.dragged !== null) {tree.removeNode(tree.dragged);};});
 		$(document).on('drop','#main svg',function(e){e.preventDefault(); if (tree.dragged !== null) {tree.addLeaf(tree.dragged);};});
 		
 		d3.select("#main").append("svg").attr("width", svgW).attr("height", svgH).attr('id','treesvg');
