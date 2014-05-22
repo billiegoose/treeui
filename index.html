@@ -482,7 +482,7 @@ function tree(){
 		$(document).on('dragover', function (e) {e.preventDefault(); return false});
 		$(document).on('input','.oval-box',function(e){reposition(tree.vis); redraw(); alignLeft(tree.vis); return true});
 		$(document).on('click','.oval-box',function(e){$(this).attr('contenteditable','true'); return true;});
-		$(document).on('blur mouseout','.oval-box',function(e){$(this).attr('contenteditable','false'); return true;});
+		$(document).on('blur','.oval-box',function(e){$(this).attr('contenteditable','false'); return true;});
 		$(document).on('drop','.fa-trash-o',function(e){e.preventDefault(); if (tree.dragged !== null) {tree.removeNode(tree.dragged);};});
 		$(document).on('drop','#main svg',function(e){e.preventDefault(); if (tree.dragged !== null) {tree.addLeaf(tree.dragged);};});
 		$(document).on('drop','.oval-box',function(e){e.preventDefault(); console.log(nodeToId(this)); if (tree.dragged !== null) {tree.moveNode(tree.dragged,nodeToId(e.target));};});
