@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<!-- Written by William Hilton -->
+<!-- Derived from the "Graceful Tree Conjecture" by NPashaP @ https://gist.github.com/NPashaP/7683252 -->
+<head>
+<meta charset="utf-8" />
+<!-- This is for the trash bin icon. -->
+<link href="http://netdna.bootstrapcdn.com/font-awesome/4.1.0/css/font-awesome.min.css" rel="stylesheet" />
+<style>
+.oval-box {
+  background: white;
+  padding: 0.25em;
+  padding-left:.5em;
+  padding-right:.5em;
+  border-radius: 50px;
+  border: 2px solid black;
+  /* Make text horizontal and vertical aligned */
+  text-align: center;
+  display: table-cell; 
+  vertical-align: middle;
+  /* Hack to make sure empty divs still have some height */
+  line-height: 1em;
+  min-height: 1em;
+}
+.oval-box span {
+  /* Disable text selection */
+  user-select: none;
+  -webkit-touch-callout: none;
+	-webkit-user-select: none;
+	-khtml-user-select: none;
+	-moz-user-select: none;
+	-ms-user-select: none;
+	-o-user-select: none;
+}
+
+/*circle{
+  fill:white;
+  stroke:steelblue;  
+  stroke-width:2px;
+}*/
+line{
+  stroke:grey;
+  stroke-width:3px;
+}
+/*.incRect{
+	stroke:grey;
+	shape-rendering:crispEdges;
+}
+#incMatx text{
+	text-anchor:middle;
+	cursor:default;
+}*/
+#treesvg g text:hover, #treesvg g circle:hover{
+	cursor:pointer;
+}
+#treesvg{
+	/*border:1px solid grey;*/
+}
+#labelpos{
+	color:white;
+}
+#g_labels text{
+	text-anchor:middle;
+}
+#g_elabels text{
+	text-anchor:middle;
+	fill:red;
+	font-weight:bold;
+}
+</style>
+</head>
+<body>
+<div>
+<h1> Instructions </h1>
+<em>Note: This demo really works best in Chrome. </em>
+<ul>
+	<li> Drag a node <em>down</em> to <strong>add</strong> a child node. </li>
+	<li> <em>Double click</em> on nodes to <strong>edit</strong> its contents. Rich HTML content is supported via keyboard shortcuts (Ctrl+B for bold, etc) or by pasting text or images from other webpages.</li>
+	<li> Drag a node <em>on top</em> of another node to change its <strong>parent</strong>.
+	<!-- <li> Drag a node sideways to re-order or <strong>move</strong> it. </li> -->
+	<li> Drag a node to the <em>trash</em> to <strong>delete</strong> it. </li>
+	<li> Drag a node <em>on top of its parent</em> to move it <strong>to the right</strong> of its siblings. </li>
+</ul>
+</div>
+<div id="main" style="position:relative">
+<i class="fa fa-2x fa-trash-o" style="position:absolute; left:0px, top:0px;"></i>
+</div>
+</body>
+
+<script src="http://code.jquery.com/jquery-1.11.0.min.js"></script>
+<script src="http://d3js.org/d3.v3.min.js"></script>
+<script>
+function tree(){
+	var svgW="100%", svgH =460, vRad=12, tree={cx:20, cy:20, w:20, h:70};
+	tree.vis={v:0, l:'?', p:{x:tree.cx, y:tree.cy},c:[]};	
+	tree.size=1;
+	tree.glabels =[];
+	tree.incMatx =[];
+	tree.incX=500, tree.incY=30, tree.incS=20;
+	tree.dragged = null;
+	
+	tree.getVertices =  function(){
+		var v =[];
+		function getVertices(t,f){	
+			v.push({v:t.v, l:t.l, p:t.p, f:f});	
+			t.c.forEach(function(d){ return getVertices(d,{v:t.v, p:t.p}); });
+		}
+		getVertices(tree.vis,{});
+		return v.sort(function(a,b){ return a.v - b.v;});
+	}
+	
+	tree.getEdges =  function(){
+		var e =[];
+		function getEdges(_){
+			_.c.forEach(function(d){ e.push({v1:_.v, l1:_.l, p1:_.p, v2:d.v, l2:d.l, p2:d.p});});
+			_.c.forEach(getEdges);
+		}
+		getEdges(tree.vis);
+		return e.sort(function(a,b){ return a.v2 - b.v2;});	
+	}
+
+
+	// This function takes in a tree object.
+	function deleteDivs (t) {
+		d3.select('#node'+t.v).remove()
+		d3.select('#edge'+t.v).remove()
+		if (t.c.length == 0) {
+			return;
+		}
+		t.c.forEach(function(d) {
+			deleteDivs(d);
+		});
+	}
+
+	// This function takes in an id number.
+	tree.moveNode = function(id,dest) {
+
+		// First, make sure that dest is not a child of id.
+		// Circular references tend to upset tree structures.
+		// t is a node. f is a function.
+		function sanitycheck (t) {
+			if (t.v == id) {
+				return sanitycheck2(t);
+			} else {
+				for (var i = t.c.length - 1; i >= 0; i--) {
+					d = t.c[i];
+					if (sanitycheck(d)) {
+						return true;
+					}
+				};
+			}
+			return false;
+		}
+		function sanitycheck2 (t) {
+			if (t.v == dest) {
+				return false;
+			} else {
+				for (var i = t.c.length - 1; i >= 0; i--) {
+					d = t.c[i];
+						if (!sanitycheck2(d)) {
+							return false;
+						}
+				};
+			}
+			return true;
+		}
+
+		if (!sanitycheck(tree.vis)) return;
+		// OK, the move is allowed, let's proceed.
+
+		console.log('moveNode('+id+','+dest+')');
+		var node = null;
+		function popNode (t) {
+			for (var i = t.c.length - 1; i >= 0; i--) {
+				d = t.c[i];
+				if (d.v==id) {
+					node = d;
+					t.c.splice(i,1);
+					return 1;
+				} else {
+					if (popNode(d)) {
+						return 1;
+					}
+				}
+			};
+			return 0;
+		}
+		function pushNode (t) {
+			if (t.v==dest) {
+				t.c.push(node);
+				return 1;
+			} else {
+				for (var i = t.c.length - 1; i >= 0; i--) {
+					d = t.c[i];
+					if (pushNode(d)) {return 1};
+				};
+			}
+			return 0;
+		}
+
+		popNode(tree.vis);
+		// deleteDivs(node);
+		pushNode(tree.vis);
+
+		redraw();
+		reposition(tree.vis);
+		alignLeft(tree.vis);
+	}
+
+	// This function takes in an id number.
+	tree.removeNode = function(v){
+
+		// This function takes in a tree object.
+		function removeNodeRec (t) {
+			for (var i = t.c.length - 1; i >= 0; i--) {
+				d = t.c[i];
+				if (d.v==v) {
+					t.c.splice(i,1);
+					deleteDivs(d);
+					return 1;
+				}
+			};
+			// If we didn't find and remove it this go round, search all it's children
+			for (var i = t.c.length - 1; i >= 0; i--) {
+				if (removeNodeRec(t.c[i])) {
+					return 1;
+				}
+			};
+			return 0;
+		}
+		removeNodeRec(tree.vis);
+		redraw();
+		reposition(tree.vis);
+		alignLeft(tree.vis);
+	}
+	
+	tree.addLeaf = function(_){
+		// A recursive helper function that searches for a node whose value
+		// matched _.
+		function addLeaf(t){
+			if(t.v==_){ t.c.push({v:tree.size++, l:'?', p:{},c:[]}); return; }
+			t.c.forEach(addLeaf);
+		}
+		// Apply the helper function to the root of the tree.
+		addLeaf(tree.vis);
+		// Rejuggle positions.
+		reposition(tree.vis);
+		if(tree.glabels.length != 0){
+			tree.glabels =[]
+			relabel(
+				{
+					lbl:d3.range(0, tree.size).map(function(d){ return '?';}), 
+					incMatx:d3.range(0,tree.size-1).map(function(){ return 0;})
+				});
+			// d3.select("#labelnav").style('visibility','hidden');
+		}
+		else tree.incMatx = d3.range(0,tree.size-1).map(function(){ return 0;});
+		redraw();
+		// Rejuggle positions.
+		reposition(tree.vis);
+		// Align left
+		alignLeft(tree.vis);
+	}
+	
+	tree.showLabel = function(i){
+		if(i >tree.glabels.length || i < 1){ alert('invalid label position'); return; } 
+		
+		relabel(tree.glabels[i-1]);
+		redraw();
+		tree.currLbl = i;
+		d3.select("#labelpos").text(tree.currLbl+'/'+tree.glabels.length);
+	}
+	
+	relabel = function(lbl){
+		function relbl(t){	t.l=lbl.lbl[t.v];	t.c.forEach(relbl);		}
+		relbl(tree.vis);
+		tree.incMatx = lbl.incMatx;
+	}
+
+	centerLeft = function (x,el) {
+		return x - $(el).outerWidth()/2 + "px";
+	}
+	centerTop = function (y,el) {
+		return y - $(el).outerHeight()/2 + "px";
+	}
+	
+	redraw = function(){
+		var edges = d3.select("#g_lines").selectAll('line').data(tree.getEdges());
+		
+		edges.transition().duration(500)
+			.attr('x1',function(d){ return d.p1.x;}).attr('y1',function(d){ return d.p1.y;})
+			.attr('x2',function(d){ return d.p2.x;}).attr('y2',function(d){ return d.p2.y;})
+	
+		edges.enter().append('line')
+			.attr('id',function(d){return 'edge'+d.v2;})
+			.attr('x1',function(d){ return d.p1.x;}).attr('y1',function(d){ return d.p1.y;})
+			.attr('x2',function(d){ return d.p1.x;}).attr('y2',function(d){ return d.p1.y;})
+			.transition().duration(500)
+			.attr('x2',function(d){ return d.p2.x;}).attr('y2',function(d){ return d.p2.y;});
+
+		var ovals = d3.select('#div_nodes').selectAll('div.oval-box').data(tree.getVertices());
+
+		ovals.transition().duration(500)
+		.style('left',function(d){ return centerLeft(d.p.x,this);})
+		.style('top',function(d){ return centerTop(d.p.y,this);});
+
+		var ovalsdiv = ovals.enter().append('div').attr('class','oval-box')
+			.attr('id',function(d){return 'node'+d.v;})
+			.html('?')
+			.style('position','absolute')
+			.style('left',function(d){return centerLeft((d.v==0) ? d.p.x : d.f.p.x, this);}) // Note the case for node 0 which
+			.style('top', function(d){return centerTop ((d.v==0) ? d.p.y : d.f.p.y, this);}) // has no parent.
+			.attr('draggable','true')
+			.on('dragstart',function(d){tree.dragged = d.v;})
+			.on('dragend',function(d){tree.dragged=null; return true;})
+
+		// Note to future self: Apply transitions LAST after appending nested elements in order to behave propertly
+		ovalsdiv.transition().duration(500)
+			.style('left',function(d){ return centerLeft(d.p.x,this);})
+			.style('top',function(d){ return centerTop(d.p.y,this);});
+
+		// ovals.exit().transition().duration(500).style('opacity','0').delay(500).remove()
+
+		// var circles = d3.select("#g_circles").selectAll('circle').data(tree.getVertices());
+
+		// circles.transition().duration(500).attr('cx',function(d){ return d.p.x;}).attr('cy',function(d){ return d.p.y;});
+		
+		// circles.enter().append('circle').attr('cx',function(d){ return d.f.p.x;}).attr('cy',function(d){ return d.f.p.y;}).attr('r',vRad)
+		// 	.on('click',function(d){return tree.addLeaf(d.v);})
+		// 	.transition().duration(500).attr('cx',function(d){ return d.p.x;}).attr('cy',function(d){ return d.p.y;});
+			
+		// var labels = d3.select("#g_labels").selectAll('text').data(tree.getVertices());
+		
+		// labels.text(function(d){return d.l;}).transition().duration(500)
+		// 	.attr('x',function(d){ return d.p.x;}).attr('y',function(d){ return d.p.y+5;});
+			
+		// labels.enter().append('text').attr('x',function(d){ return d.f.p.x;}).attr('y',function(d){ return d.f.p.y+5;})
+		// 	.text(function(d){return d.l;}).on('click',function(d){return tree.addLeaf(d.v);})
+		// 	.transition().duration(500)
+		// 	.attr('x',function(d){ return d.p.x;}).attr('y',function(d){ return d.p.y+5;});		
+			
+		var elabels = d3.select("#g_elabels").selectAll('text').data(tree.getEdges());
+					
+		elabels
+			.attr('x',function(d){ return (d.p1.x+d.p2.x)/2+(d.p1.x < d.p2.x? 8: -8);}).attr('y',function(d){ return (d.p1.y+d.p2.y)/2;})
+			.text(function(d){return tree.glabels.length==0? '': Math.abs(d.l1 -d.l2);});	
+			
+		elabels.enter().append('text')
+			.attr('x',function(d){ return (d.p1.x+d.p2.x)/2+(d.p1.x < d.p2.x? 8: -8);}).attr('y',function(d){ return (d.p1.y+d.p2.y)/2;})
+			.text(function(d){return tree.glabels.length==0? '': Math.abs(d.l1 -d.l2);});	
+			
+		
+		// d3.select('#incMatx').selectAll(".incrow").data(tree.incMatx)
+		// 	.enter().append('g').attr('class','incrow');
+			
+		// d3.select('#incMatx').selectAll(".incrow").selectAll('.incRect')
+		// 	.data(function(d,i){ return getIncMatxRow(i).map(function(v,j){return {y:i, x:j, f:v};})})
+		// 	.enter().append('rect').attr('class','incRect');
+			
+		// d3.select('#incMatx').selectAll('.incRect')
+		// 	.attr('x',function(d,i){ return (d.x+d.y)*tree.incS;}).attr('y',function(d,i){ return d.y*tree.incS;})
+		// 	.attr('width',function(){ return tree.incS;}).attr('height',function(){ return tree.incS;})
+		// 	.attr('fill',function(d){ return d.f == 1? 'black':'white'});
+			
+		// d3.select("#incMatx").selectAll('.incrowlabel').data(d3.range(0,tree.size)).enter()
+		// 	.append('text').attr('class','incrowlabel');
+			
+		// d3.select("#incMatx").selectAll('.incrowlabel').text(function(d){ return d;})
+		// 	.attr('x',function(d,i){ return (i-0.5)*tree.incS}).attr('y',function(d,i){ return (i+0.8)*tree.incS});
+
+		// For Firefox.
+    var dragItems = document.querySelectorAll('[draggable=true]');
+    for (var i = 0; i < dragItems.length; i++) {
+      dragItems[i].addEventListener('dragstart', function (event) {
+        event.dataTransfer.setData('text/plain', "");
+      });
+    }
+	}
+	
+	getLeafCount = function(_){
+		if(_.c.length ==0) return 1;
+		else return _.c.map(getLeafCount).reduce(function(a,b){ return a+b;});
+	}
+	
+	// reposition = function(v){
+	// 	var lC = getLeafCount(v), left=v.p.x - tree.w*(lC-1)/2;
+	// 	v.c.forEach(function(d){
+	// 		var w =tree.w*getLeafCount(d); 
+	// 		left+=w; 
+	// 		d.p = {x:left-(w+tree.w)/2, y:v.p.y+tree.h};
+	// 		reposition(d);
+	// 	});		
+	// }	
+	
+	getChildrenWidth = function (d) {
+		// Sum up the width of the children
+		return (d.c.length) ? (tree.w*(d.c.length-1)) + d.c.map(getNodeWidth).reduce(function(a,b){return a+b;}) : 0;
+	}
+
+	// 
+	getNodeWidth = function (d) {
+		// Try to get a handle to the actual node.
+		var div = $('#node'+d.v)
+		// If it doesn't exist, grab the proto-node so we don't have width == 0.
+		if (div.length == 0) {
+			div = $('#protonode');
+		}
+		var my_width = div.outerWidth()
+		// console.log('my_width: '+my_width);
+		var children_width = getChildrenWidth(d);
+		// Return whichever is wider, me or my children
+		return Math.max(my_width, children_width);
+	}
+
+	// We are modifying this to use an actual node width rather than
+	// a constant value (tree.w)
+	reposition = function(v){
+		var left=v.p.x - getChildrenWidth(v)/2;
+		for (var i = 0; i < v.c.length; i++) {
+			d = v.c[i];
+			var w =getNodeWidth(d);
+			left+=w/2; 
+			d.p = {x:left, y:v.p.y+tree.h};
+			left+=w/2+tree.w;
+			reposition(d); 
+		};
+	}
+
+	getChildrenLeft = function (d) {
+		// Sum up the width of the children
+		return (d.c.length) ? Math.min.apply(Math, d.c.map(getNodeLeft)) : 100000;
+	}
+
+	getNodeLeft = function (d) {		
+		// Try to get a handle to the actual node.
+		var div = $('#node'+d.v)
+		if (div.length > 0) {
+			// Note: We use the x value, not div.position().left, because
+			// .left is inaccurate during transitions while d.p.x is stable.
+			var my_left = d.p.x - div.width()/2;
+		} else {		
+			// If it doesn't exist, grab the x position - 1/2 the width of the proto-node.
+			div = d.p.x - $('#protonode').width()/2;
+		}		
+		// console.log('my_width: '+my_width);
+		var children_left = getChildrenLeft(d);
+		// Return whichever is wider, me or my children
+		return Math.min(my_left, children_left);
+	}
+
+	shiftY = function (v,amount) {
+		v.p.y -= amount;
+		v.c.forEach(function(d){
+			shiftY(d,amount);
+		});
+	}
+
+	shiftX = function (v,amount) {
+		v.p.x -= amount;
+		v.c.forEach(function(d){
+			shiftX(d,amount);
+		});
+	}
+
+	alignLeft = function (v) {
+		var padding = tree.w; // arbitrary.
+		var left = getNodeLeft(v) - padding;
+		shiftX(v,left);
+		redraw();
+	}
+
+	initialize = function(){
+		// d3.select("body").append("div").attr('id','navdiv');
+		
+		// This exists for the bizaire purpose of computing the width of a brand new node that doesn't exist yet.
+		var protooval = d3.select("body").append('div').attr('class','oval-box')
+			.attr('id','protonode')
+			.html('?')
+			.style('visibility','hidden');
+
+		var ovals = d3.select("#main").append('div').attr('id','div_nodes').selectAll('div').data(tree.getVertices()).enter();
+
+		$(document).on('dragover', function (e) {e.preventDefault(); return false});
+		$(document).on('input','.oval-box',function(e){reposition(tree.vis); redraw(); alignLeft(tree.vis); return true});
+		$(document).on('click','.oval-box',function(e){$(this).attr('contenteditable','true'); return true;});
+		$(document).on('blur','.oval-box',function(e){$(this).attr('contenteditable','false'); return true;});
+		$(document).on('drop','.fa-trash-o',function(e){e.preventDefault(); if (tree.dragged !== null) {tree.removeNode(tree.dragged);};});
+		$(document).on('drop','#main svg',function(e){e.preventDefault(); if (tree.dragged !== null) {tree.addLeaf(tree.dragged);};});
+		$(document).on('drop','.oval-box',function(e){e.preventDefault(); console.log(nodeToId(this)); if (tree.dragged !== null) {tree.moveNode(tree.dragged,nodeToId(e.target));};});
+		
+		function nodeToId(n) {
+			return parseInt($(n).attr('id').slice(4));
+		}
+
+		d3.select("#main").append("svg").attr("width", svgW).attr("height", svgH).attr('id','treesvg');
+
+		d3.select("#treesvg").append('g').attr('id','g_lines').selectAll('line').data(tree.getEdges()).enter().append('line')
+			.attr('x1',function(d){ return d.p1.x;}).attr('y1',function(d){ return d.p1.y;})
+			.attr('x2',function(d){ return d.p2.x;}).attr('y2',function(d){ return d.p2.y;});
+
+		// d3.select("#treesvg").append('g').attr('id','g_circles').selectAll('circle').data(tree.getVertices()).enter()
+		// 	.append('circle').attr('cx',function(d){ return d.p.x;}).attr('cy',function(d){ return d.p.y;}).attr('r',vRad)
+		// 	.on('click',function(d){return tree.addLeaf(d.v);});
+
+
+		// d3.select("#treesvg").append('g').attr('id','g_labels').selectAll('text').data(tree.getVertices()).enter().append('text')
+		// 	.attr('x',function(d){ return d.p.x;}).attr('y',function(d){ return d.p.y+5;}).text(function(d){return d.l;})
+		// 	.on('click',function(d){return tree.addLeaf(d.v);});	
+			
+		d3.select("#treesvg").append('g').attr('id','g_elabels').selectAll('text').data(tree.getEdges()).enter().append('text')
+			.attr('x',function(d){ return (d.p1.x+d.p2.x)/2+(d.p1.x < d.p2.x? 8: -8);}).attr('y',function(d){ return (d.p1.y+d.p2.y)/2;})
+			.text(function(d){return tree.glabels.length==0? '': Math.abs(d.l1 -d.l2);});	
+			
+		// d3.select("body").select("svg").append('g').attr('transform',function(){ return 'translate('+tree.incX+','+tree.incY+')';})
+		// 	.attr('id','incMatx').selectAll('.incrow')
+		// 	.data(tree.incMatx.map(function(d,i){ return {i:i, r:d};})).enter().append('g').attr('class','incrow');
+
+		// d3.select("#incMatx").selectAll('.incrowlabel').data(d3.range(0,tree.size)).enter()
+		// 	.append('text').attr('class','incrowlabel').text(function(d){ return d;})
+		// 	.attr('x',function(d,i){ return (i-0.5)*tree.incS}).attr('y',function(d,i){ return (i+.8)*tree.incS});
+		
+		tree.addLeaf(0);
+		redraw();
+		tree.addLeaf(0);
+	}
+	initialize();
+
+	return tree;
+}
+var tree= tree();
+</script>
+</html>
