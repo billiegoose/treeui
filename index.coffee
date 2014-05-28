@@ -4,14 +4,12 @@ $(document).ready () ->
       $('#instructions').animate
         height: $('#instructions')[0].scrollHeight+'px'
       , 500
-      $(this).css("-webkit-transition","0.2s ease")
-      $(this).css("-webkit-transform","rotate(90deg)")
+      $(this).addClass("rotate90")
     else
       $('#instructions').animate
         height: '0px'
       , 500 
-      $(this).css("-webkit-transition","0.2s ease")
-      $(this).css("-webkit-transform","rotate(0deg)")
+      $(this).removeClass("rotate90")
     return
 
   window.graph = new Graph
@@ -43,16 +41,16 @@ $(document).ready () ->
   # Adjust position of nodes as content is dynamically edited
   # TODO: Set a limit on how many times per second to do this so that it
   # doesn't slow down typing.
-  $(document).on "input", ".node", (e) ->
+  $(document).on "keyup", ".node", (e) ->
     id = parseInt($(this).attr("data-id"))
     graph.node(id).d3.html = $(this).html()
-    graphUI.reposition graphUI.graph.vis
     graphUI.redraw()
     return true
 
   # Turn off node content editing mode when node loses focus.
   $(document).on "blur", ".node", (e) ->
     $(this).attr "contenteditable", "false"
+    graphUI.redraw()
     return true
 
   ##############
@@ -61,6 +59,8 @@ $(document).ready () ->
 
   # Create an add node button when single-clicked.
   $(document).on "click", ".node", (e) ->
+    e.stopPropagation();
+    e.preventDefault();
     id = $(this).attr("data-id")
     # Hide any other add buttons.
     $(".add-node-btn").not("[data-id=#{id}]").fadeOut(100)
@@ -76,13 +76,17 @@ $(document).ready () ->
     # Show the button
     $(container).find(".add-node-btn").fadeIn(250)
 
-  # Hide node button when svg canvas is clicked
-  $(document).on "click", "#graph svg", (e) ->
+  # Unselect the node when something else is clicked.
+  $(document).on "click", "body", (e) ->
+    e.stopPropagation();
+    e.preventDefault();
     $(".add-node-btn").fadeOut(100)
     $(".node").attr("contenteditable","false")
 
   # Add a node
   $(document).on "click", ".add-node-btn", (e) ->
+    e.stopPropagation();
+    e.preventDefault();
     node = parseInt($(this).attr("data-id"))
     graph.addNode("?", node)
     graphUI.redraw()
@@ -98,7 +102,7 @@ $(document).ready () ->
 
   # Drag a node
   $(document).on "dragstart", ".node", (e) ->
-    e.originalEvent.dataTransfer.setData("text/plain", $(this).attr("data-id"));
+    e.originalEvent.dataTransfer.setData("text", $(this).attr("data-id"));
     return
 
   # Make trashcan red on dragover
@@ -110,8 +114,9 @@ $(document).ready () ->
 
   # Drop a node on the trashcan
   $(document).on "drop", ".fa-trash-o", (e) ->
+    e.stopPropagation()
     e.preventDefault()
-    dragged = parseInt(e.originalEvent.dataTransfer.getData("text/plain"))
+    dragged = parseInt(e.originalEvent.dataTransfer.getData("text"))
     deleteAll = (id)->
       node = graph.node(id)
       if node.children.length > 0
@@ -130,7 +135,7 @@ $(document).ready () ->
   $(document).on "drop", "body", (e) ->
     e.stopPropagation()
     e.preventDefault()
-    dragged = parseInt(e.originalEvent.dataTransfer.getData("text/plain"))
+    dragged = parseInt(e.originalEvent.dataTransfer.getData("text"))
     graph.moveNode(dragged,null)  if dragged isnt null
     # For aesthetics, we remove the link. Otherwise, the link flies to the 
     # trash, and that might startle users.
@@ -143,7 +148,7 @@ $(document).ready () ->
   $(document).on "drop", ".node", (e) ->
     e.stopPropagation()
     e.preventDefault()
-    dragged = parseInt(e.originalEvent.dataTransfer.getData("text/plain"))
+    dragged = parseInt(e.originalEvent.dataTransfer.getData("text"))
     dest = parseInt($(this).attr("data-id"))
     # Sanity checks - TODO: add more
     if dragged == dest then return # Accidental drag. Dropped on self.
