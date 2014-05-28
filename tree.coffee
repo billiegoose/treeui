@@ -37,7 +37,7 @@ class window.Graph
   node: (id) =>
     nodes = (node for node in @_nodes when node.id is id)
     switch nodes.length
-      when 0 then throw "No node found matching id: " + id
+      when 0 then return null
       when 1 then return nodes[0]
       else
         console.log nodes

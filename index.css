@@ -40,10 +40,16 @@ body {
   position: absolute; left: 0; top: 0;
   color: black;
   -webkit-transition: 0.1s ease;
+  -moz-transition: 0.1s ease;
+  -ms-transition: 0.1s ease;
+  transition: 0.1s ease;
 }
 #trashcan.dragover {
   color: #e50000; /*XKCD red*/
   -webkit-transform: scale(1.5);
+  -moz-transform: scale(1.5);
+  -ms-transform: scale(1.5);
+  transform: scale(1.5);
 }
 #instructions {
   /* Muchas gracias http://stackoverflow.com/a/9209306/2168416 */
@@ -51,6 +57,18 @@ body {
   padding : 0 0;
   overflow : auto;
   height : 0;
+}
+#show-instructions {
+  -webkit-transition: 0.2s ease;
+  -moz-transition: 0.2s ease;
+  -ms-transition: 0.2s ease;
+  transition: 0.2s ease;
+}
+.rotate90 {
+  -webkit-transform: rotate(90deg);
+  -moz-transform: rotate(90deg);
+  -ms-transition: 0.2s ease;
+  transform: rotate(90deg);
 }
 .graphsvg line {
   stroke: gray;
