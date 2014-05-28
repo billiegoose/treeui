@@ -1,0 +1,58 @@
+/* These are necessary so that drag-dropping on an empty part of the page
+   doesn't try to open up 1.com 2.com, etc in Firefox. */
+html {
+  height: 100%;
+}
+body {
+  min-height: 100%;
+}
+.node {
+  cursor: pointer; /* It's clickable */
+  background: white;
+  padding: 0.25em;
+  padding-left:.5em;
+  padding-right:.5em;
+  border-radius: 50px;
+  border: 2px solid black;
+  /* Make text horizontal and vertical aligned */
+  text-align: center;
+  display: table-cell; 
+  vertical-align: middle;
+  /* Hack to make sure empty divs still have some height */
+  line-height: 1em;
+  min-height: 1em;
+}
+.node[contenteditable=true] {
+  cursor: text; /* Visual cue for content editing mode */
+}
+.add-node-btn {
+  cursor: pointer; /* It's clickable */
+  display: block;
+  margin: 0 auto;
+  bottom: -14px;
+  width: 14px;
+  height: 14px;
+  z-index: 1000;
+  background: white;
+  border-radius: 7px;
+}
+#trashcan {
+  position: absolute; left: 0; top: 0;
+  color: black;
+  -webkit-transition: 0.1s ease;
+}
+#trashcan.dragover {
+  color: #e50000; /*XKCD red*/
+  -webkit-transform: scale(1.5);
+}
+#instructions {
+  /* Muchas gracias http://stackoverflow.com/a/9209306/2168416 */
+  margin : 0;
+  padding : 0 0;
+  overflow : auto;
+  height : 0;
+}
+.graphsvg line {
+  stroke: gray;
+  stroke-width: 3px;
+}
