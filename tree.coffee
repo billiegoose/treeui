@@ -100,6 +100,24 @@ class window.Graph
     @_links = (link for link in @_links when (link.child isnt child or link.parent isnt parent))
     return true
 
+  toJSON: () =>
+    o = {}
+    o._nodes = @_nodes
+    # These are derived and shouldn't really be needed.
+    # But currently, I don't re-calculate them so we'll save them.
+    o._nextid = @_nextid
+    o._links = @_links
+    return JSON.stringify(o)
+
+  loadJSON: (s) =>
+    o = JSON.parse(s)
+    @_nodes = o._nodes
+    # These are derived and shouldn't really be needed.
+    # But currently, I don't re-calculate them so we'll save them.
+    @_nextid = o._nextid
+    @_links = o._links
+    return
+
   # Constructor for main graph class.
   constructor: ->
     self = this # A hack, so we can access the graph methods inside nested closures that have different `this`
@@ -282,6 +300,12 @@ class window.Graph.vis
       .attr("data-id", (d) -> d.id)
       .attr("draggable", "true")
       .html((d)-> d.d3.html)
+    
+    # Update the HTML content of nodes (must be done before calculating positions so we have access to widths)
+    # We must also ignore nodes where the content is being actively edited!
+    # (Otherwise, it appears to move the cursor back to the beginning of the content.)
+    d3.selectAll("#{@div} .node[contenteditable='false']").data(@graph._nodes, (d)-> d.id)
+      .html((d)-> return d.d3.html)
 
     # Phase 2 - With these elements (hopefully) created now, compute their final positions.
     @reposition()

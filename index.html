@@ -10,8 +10,8 @@
 <body>
   <div>
     <h2> Instructions <i id="show-instructions" class="fa fa-caret-right"></i></h2>
-    <em>Note: This demo works in the latest versions of Chrome, Firefox, and Internet Explorer. </em>
     <div id="instructions" class="instructions">
+      <em>Note: This demo works in the latest versions of Chrome, Firefox, and Internet Explorer. </em>
       <ul>
       	<li> <b>Select</b> a node by clicking it. </li>
       	<li> <b>Edit</b> a node's contents by clicking inside it after it is selected. </li>
@@ -23,14 +23,18 @@
       	<li> <b>Reorder</b> nodes by dropping them on top of its parent to move them to the right of their siblings. </li>
       </ul>
     </div>
-    <p />
   </div>
+  <button id="download">Download</button>
+  <button id="upload">Upload</button>
+  <input type="file" id="file-chooser" name="file-chooser" />
+  <p />
   <div id="graph" style="position:relative">
     <i id="trashcan" class="trashcan fa fa-2x fa-trash-o"></i>
   </div>
 </body>
 <script src="http://code.jquery.com/jquery-1.11.0.min.js"></script>
 <script src="http://d3js.org/d3.v3.min.js"></script>
+<script src="lib/FileSaver.js"></script>
 <script src="tree.js"></script>
 <script src="index.js"></script>
 </html>
