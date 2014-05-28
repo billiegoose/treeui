@@ -1,17 +1,4 @@
 $(document).ready () ->
-  $("#show-instructions").on "click", () ->
-    if $('#instructions').height() == 0
-      $('#instructions').animate
-        height: $('#instructions')[0].scrollHeight+'px'
-      , 500
-      $(this).addClass("rotate90")
-    else
-      $('#instructions').animate
-        height: '0px'
-      , 500 
-      $(this).removeClass("rotate90")
-    return
-
   window.graph = new Graph
   window.graphUI = new Graph.vis(graph,$('#graph'))
   window.graph = graph
@@ -29,10 +16,25 @@ $(document).ready () ->
 
   # The following are all jQuery event handlers for graphical interactions.
 
+  ########################
+  # SHOW/HIDE INSTRUCTIONS
+  ########################
+  $("#show-instructions").on "click", () ->
+    if $('#instructions').height() == 0
+      $('#instructions').animate
+        height: $('#instructions')[0].scrollHeight+'px'
+      , 500
+      $(this).addClass("rotate90")
+    else
+      $('#instructions').animate
+        height: '0px'
+      , 500 
+      $(this).removeClass("rotate90")
+    return
+    
   ######################
   # EDITING NODE CONTENT
   ######################
-
   # Enable node content editing when clicked
   $(document).on "click", ".node", (e) ->
     $(this).attr "contenteditable", "true"
@@ -56,7 +58,6 @@ $(document).ready () ->
   ##############
   # ADDING NODES
   ##############
-
   # Create an add node button when single-clicked.
   $(document).on "click", ".node", (e) ->
     e.stopPropagation();
@@ -78,8 +79,8 @@ $(document).ready () ->
 
   # Unselect the node when something else is clicked.
   $(document).on "click", "body", (e) ->
-    e.stopPropagation();
-    e.preventDefault();
+    # e.stopPropagation();  # BAD! VERY BAD. BROKE CLICKING <input type="file">
+    # e.preventDefault();
     $(".add-node-btn").fadeOut(100)
     $(".node").attr("contenteditable","false")
 
@@ -94,7 +95,6 @@ $(document).ready () ->
   #####################
   # DRAG-DROPPING NODES
   #####################
-
   # This is needed to allow for drag-dropping.
   $(document).on "dragover", (e) ->
     e.preventDefault()
@@ -155,3 +155,32 @@ $(document).ready () ->
     graph.moveNode(dragged, dest) if dragged isnt null
     graphUI.redraw()
     return
+
+  ###########################
+  # SAVING AND LOADING GRAPHS
+  ###########################
+  $("#download").on "click", (e) ->
+    text = graph.toJSON()
+    blob = new Blob([text], {type: 'text/plain;charset=utf-8'})
+    saveAs(blob, 'graph.json')
+
+  $("#upload").on "click", (e) ->
+    $(this).hide()
+    $("#file-chooser").show()
+
+  $("#file-chooser").on "change", (e) ->
+    f = e.target.files[0]
+    reader = new FileReader()
+    reader.onload = (e)->
+      # TODO: Error handling?
+      graph.loadJSON(e.target.result)
+      graphUI.redraw()
+    reader.readAsText(f)
+    $(this).hide()
+    resetFormElement(this)
+    $("#upload").show()
+    
+# http://stackoverflow.com/a/13351234/2168416
+resetFormElement = (el)->
+  $(el).wrap('<form>').closest('form').get(0).reset()
+  $(el).unwrap()

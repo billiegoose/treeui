@@ -70,6 +70,9 @@ body {
   -ms-transition: 0.2s ease;
   transform: rotate(90deg);
 }
+#file-chooser {
+  display: none;
+}
 .graphsvg line {
   stroke: gray;
   stroke-width: 3px;
