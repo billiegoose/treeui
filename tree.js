@@ -206,7 +206,26 @@
       return true;
     };
 
+    Graph.prototype.toJSON = function() {
+      var o;
+      o = {};
+      o._nodes = this._nodes;
+      o._nextid = this._nextid;
+      o._links = this._links;
+      return JSON.stringify(o);
+    };
+
+    Graph.prototype.loadJSON = function(s) {
+      var o;
+      o = JSON.parse(s);
+      this._nodes = o._nodes;
+      this._nextid = o._nextid;
+      this._links = o._links;
+    };
+
     function Graph() {
+      this.loadJSON = __bind(this.loadJSON, this);
+      this.toJSON = __bind(this.toJSON, this);
       this._unlink = __bind(this._unlink, this);
       this._link = __bind(this._link, this);
       this.links = __bind(this.links, this);
@@ -430,6 +449,11 @@
       }).attr("data-id", function(d) {
         return d.id;
       }).attr("draggable", "true").html(function(d) {
+        return d.d3.html;
+      });
+      d3.selectAll("" + this.div + " .node[contenteditable='false']").data(this.graph._nodes, function(d) {
+        return d.id;
+      }).html(function(d) {
         return d.d3.html;
       });
       this.reposition();
