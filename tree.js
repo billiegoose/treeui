@@ -63,8 +63,7 @@
       }).call(this);
       switch (nodes.length) {
         case 0:
-          throw "No node found matching id: " + id;
-          break;
+          return null;
         case 1:
           return nodes[0];
         default:

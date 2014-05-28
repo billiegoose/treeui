@@ -7,14 +7,12 @@
         $('#instructions').animate({
           height: $('#instructions')[0].scrollHeight + 'px'
         }, 500);
-        $(this).css("-webkit-transition", "0.2s ease");
-        $(this).css("-webkit-transform", "rotate(90deg)");
+        $(this).addClass("rotate90");
       } else {
         $('#instructions').animate({
           height: '0px'
         }, 500);
-        $(this).css("-webkit-transition", "0.2s ease");
-        $(this).css("-webkit-transform", "rotate(0deg)");
+        $(this).removeClass("rotate90");
       }
     });
     window.graph = new Graph;
@@ -35,20 +33,22 @@
       $(this).attr("contenteditable", "true");
       return true;
     });
-    $(document).on("input", ".node", function(e) {
+    $(document).on("keyup", ".node", function(e) {
       var id;
       id = parseInt($(this).attr("data-id"));
       graph.node(id).d3.html = $(this).html();
-      graphUI.reposition(graphUI.graph.vis);
       graphUI.redraw();
       return true;
     });
     $(document).on("blur", ".node", function(e) {
       $(this).attr("contenteditable", "false");
+      graphUI.redraw();
       return true;
     });
     $(document).on("click", ".node", function(e) {
       var button, container, id;
+      e.stopPropagation();
+      e.preventDefault();
       id = $(this).attr("data-id");
       $(".add-node-btn").not("[data-id=" + id + "]").fadeOut(100);
       container = $(this).parent();
@@ -58,12 +58,16 @@
       }
       return $(container).find(".add-node-btn").fadeIn(250);
     });
-    $(document).on("click", "#graph svg", function(e) {
+    $(document).on("click", "body", function(e) {
+      e.stopPropagation();
+      e.preventDefault();
       $(".add-node-btn").fadeOut(100);
       return $(".node").attr("contenteditable", "false");
     });
     $(document).on("click", ".add-node-btn", function(e) {
       var node;
+      e.stopPropagation();
+      e.preventDefault();
       node = parseInt($(this).attr("data-id"));
       graph.addNode("?", node);
       return graphUI.redraw();
@@ -73,7 +77,7 @@
       return false;
     });
     $(document).on("dragstart", ".node", function(e) {
-      e.originalEvent.dataTransfer.setData("text/plain", $(this).attr("data-id"));
+      e.originalEvent.dataTransfer.setData("text", $(this).attr("data-id"));
     });
     $(document).on("dragenter", ".fa-trash-o", function(e) {
       console.log("dragenter");
@@ -84,8 +88,9 @@
     });
     $(document).on("drop", ".fa-trash-o", function(e) {
       var deleteAll, dragged;
+      e.stopPropagation();
       e.preventDefault();
-      dragged = parseInt(e.originalEvent.dataTransfer.getData("text/plain"));
+      dragged = parseInt(e.originalEvent.dataTransfer.getData("text"));
       deleteAll = function(id) {
         var child, node, _i, _len, _ref;
         node = graph.node(id);
@@ -109,7 +114,7 @@
       var dragged;
       e.stopPropagation();
       e.preventDefault();
-      dragged = parseInt(e.originalEvent.dataTransfer.getData("text/plain"));
+      dragged = parseInt(e.originalEvent.dataTransfer.getData("text"));
       if (dragged !== null) {
         graph.moveNode(dragged, null);
       }
@@ -121,7 +126,7 @@
       var dest, dragged;
       e.stopPropagation();
       e.preventDefault();
-      dragged = parseInt(e.originalEvent.dataTransfer.getData("text/plain"));
+      dragged = parseInt(e.originalEvent.dataTransfer.getData("text"));
       dest = parseInt($(this).attr("data-id"));
       if (dragged === dest) {
         return;
