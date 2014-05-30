@@ -3,12 +3,14 @@ $(document).ready () ->
   window.graphUI = new Graph.vis(graph,$('#graph'))
   window.graph = graph
   window.graphUI = graphUI
-  graph.addNode(null,null).d3.html = 'Click me<br>to edit text'
+  graph.addNode(null,null).d3.html = 'Root Node'
   child1 = graph.addNode(null,0)
   child1.d3.html = 'Child 1'
-  graph.addNode(null,0).d3.html = '<i class="fa fa-arrow-left"></i> Drag me onto Child 1'  
+  child2 = graph.addNode(null,0)
+  child2.d3.html = '<i class="fa fa-arrow-left"></i> Drag me under Child 1'  
+  graph.addNode(null,child2.id).d3.html = 'Click me<br>to edit text'
   newroot = graph.addNode(null,child1.id)
-  newroot.d3.html = 'Drag me into<br>a blank area'
+  newroot.d3.html = 'Drag me above<br>the Root Node'
   graph.addNode(null,newroot.id).d3.html = 'Click me, then<br>click the <i class="fa fa-plus-circle"></i>'
   graph.addNode(null,newroot.id)
   graph.addNode(null,child1.id).d3.html = 'Drag me<br>into the <i class="fa fa-trash-o">'
@@ -86,8 +88,8 @@ $(document).ready () ->
 
   # Add a node
   $(document).on "click", ".add-node-btn", (e) ->
-    e.stopPropagation();
-    e.preventDefault();
+    e.stopPropagation()
+    e.preventDefault()
     node = parseInt($(this).attr("data-id"))
     graph.addNode("?", node)
     graphUI.redraw()
@@ -98,61 +100,109 @@ $(document).ready () ->
   # This is needed to allow for drag-dropping.
   $(document).on "dragover", (e) ->
     e.preventDefault()
+    e.stopPropagation()
     return false
 
   # Drag a node
   $(document).on "dragstart", ".node", (e) ->
-    e.originalEvent.dataTransfer.setData("text", $(this).attr("data-id"));
+    graphUI.dragged = parseInt($(this).attr("data-id"))
+    data = {dragged: graphUI.dragged}
+    setData e, data
     return
+
+  $(document).on "dragover", "body", (e) ->
+    e.preventDefault()
+    e.stopPropagation()
+    # Get cursor position relative to #graph
+    p = $('#graph').position()
+    x = e.originalEvent.clientX-p.left
+    y = e.originalEvent.clientY-p.top
+    # Find nearest node that is above the cursor
+    candidates = (node for node in graph._nodes when node.d3.y < y)
+    candidates = (node for node in candidates when not graph.isDescendent(graphUI.dragged,node.id))
+    # Nothing nearby
+    if candidates.length == 0 
+      graphUI.selected = null
+      graphUI.drawAux([])
+      return
+    dists = (Math.pow(node.d3.x - x,2) + Math.pow(node.d3.y - y,2) for node in candidates)
+    min_dist = Math.min(dists...)
+    min_idx = dists.indexOf(min_dist)
+    nearest = candidates[min_idx]
+    graphUI.selected = nearest.id
+    # Nearest to itself
+    if graphUI.selected != graphUI.dragged 
+      parent = graph.node(graphUI.selected)
+      child = graph.node(graphUI.dragged)
+      # This fixes the occasional flickering "Can't Drop Here" bug
+      y = y - 5
+      # Draw line from cursor to node.
+      auxline = 
+        d3:
+          parent:
+            oldx: parent.d3.oldx
+            oldy: parent.d3.oldy
+            x:    parent.d3.x
+            y:    parent.d3.y
+          child:
+            oldx: x
+            oldy: y
+            x:    x
+            y:    y
+      graphUI.drawAux([auxline])
+    else
+      graphUI.drawAux([])
+    return true
+
+  # Delete auxillary lines
+  $(document).on "dragend", "body", (e) ->
+    graphUI.drawAux([])
 
   # Make trashcan red on dragover
   $(document).on "dragenter", ".fa-trash-o", (e) ->
     console.log "dragenter"
     $(this).addClass("dragover")
+    graphUI.selected = null
+    graphUI.drawAux([])
   $(document).on "dragleave", ".fa-trash-o", (e) ->
     $(this).removeClass("dragover")
+
+  $(document).on "dragover", ".trashcan", (e) ->
+    e.stopPropagation();
+    e.preventDefault();
 
   # Drop a node on the trashcan
   $(document).on "drop", ".fa-trash-o", (e) ->
     e.stopPropagation()
     e.preventDefault()
-    dragged = parseInt(e.originalEvent.dataTransfer.getData("text"))
     deleteAll = (id)->
       node = graph.node(id)
       if node.children.length > 0
         deleteAll child for child in node.children
       graph.removeNode(id)
-    deleteAll(dragged)
+    deleteAll(graphUI.dragged)
     # For aesthetics, we instantly remove the visible link between the node and it's parent.
-    d3.selectAll("#graph line[data-child='#{dragged}']").remove()
+    d3.selectAll("#graph line[data-child='#{graphUI.dragged}']").remove()
     graphUI.redraw()
     setTimeout () ->
       $("#trashcan").removeClass("dragover")
     , 500
     return
 
-  # Drop a node on a blank part of the blank svg canvas
+  # Move a node when the node is dropped
   $(document).on "drop", "body", (e) ->
     e.stopPropagation()
     e.preventDefault()
-    dragged = parseInt(e.originalEvent.dataTransfer.getData("text"))
-    graph.moveNode(dragged,null)  if dragged isnt null
-    # For aesthetics, we remove the link. Otherwise, the link flies to the 
-    # trash, and that might startle users.
-    console.log d3.selectAll("#graph line[data-child='#{dragged}']")
-    d3.selectAll("#graph line[data-child='#{dragged}']").remove()
-    graphUI.redraw()
-    return
-
-  # Drop a node onto another node
-  $(document).on "drop", ".node", (e) ->
-    e.stopPropagation()
-    e.preventDefault()
-    dragged = parseInt(e.originalEvent.dataTransfer.getData("text"))
-    dest = parseInt($(this).attr("data-id"))
-    # Sanity checks - TODO: add more
-    if dragged == dest then return # Accidental drag. Dropped on self.
-    graph.moveNode(dragged, dest) if dragged isnt null
+    console.log graphUI.dragged
+    console.log graphUI.selected
+    # Sanity checks
+    if graphUI.dragged == graphUI.selected then return
+    if graph.isDescendent(graphUI.dragged, graphUI.selected) then return
+    # OK, proceed.
+    graph.moveNode(graphUI.dragged,graphUI.selected)
+    if graphUI.selected is null
+      # For aesthetics, we remove the link so it doesn't fly to the trash, which might startle users.
+      d3.selectAll("#graph line[data-child='#{graphUI.dragged}']").remove()
     graphUI.redraw()
     return
 
@@ -184,3 +234,9 @@ $(document).ready () ->
 resetFormElement = (el)->
   $(el).wrap('<form>').closest('form').get(0).reset()
   $(el).unwrap()
+
+setData = (e,obj) ->
+  e.originalEvent.dataTransfer.setData("text", JSON.stringify(obj));
+
+getData = (e) ->
+  JSON.parse(e.originalEvent.dataTransfer.getData("text"))

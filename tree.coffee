@@ -43,18 +43,18 @@ class window.Graph
         console.log nodes
         throw "Multiple nodes matched id: " + id
 
-  addNode: (data, parent) =>
+  addNode: (data, parent, index) =>
     node = new Graph.Node
     node.id = @_nextid++ # Auto-increment
     node.data = data       # Store AST data
     @_nodes.push(node)
-    if parent? then @_link(node.id,parent)
+    if parent? then @_link(node.id,parent, index)
     return node
 
-  moveNode: (id, newparent) =>
+  moveNode: (id, newparent, index) =>
     oldparent = @node(id).parent
     if oldparent? then @_unlink(id, oldparent)
-    if newparent? then @_link(id, newparent)
+    if newparent? then @_link(id, newparent, index)
     return true
 
   removeNode: (id) =>
@@ -78,23 +78,40 @@ class window.Graph
       # TODO: Keep track of which nodes we've visited to avoid cycles.
       return 1 + @depth(node.parent)
 
+  isDescendent: (pid, cid) =>
+    if cid is null then return false
+    if cid is pid then return true
+    return @isDescendent pid, @node(cid).parent
+
+  isConnected: (id1, id2) =>
+    return @isDescendent(id1, id2) or @isDescendent(id2, id1)
+
+  isCycle: (id) =>
+    cycle = (id, list) =>
+      if not id? then return false
+      if id in list then return true
+      list.push(id)
+      return cycle @node(id).parent, list
+    return cycle id, []
+
   # Really we just want to discourage people from modifying the array accidentally
   links: =>
     return @_links.slice(0)
 
   # Just for consistancy really
-  _link: (child,parent) =>
+  _link: (child, parent, index) =>
     # TODO: Add sanity checks.
     if not @node(parent)? then throw "Parent node " + parent + " does not exist."
     # NOTE: It is important we store the parent ID here, not an actual object,
     # so that we can serialize _nodes as a flat array later on for storage!!!
     @node(child).parent = parent
-    @node(parent).children.push(child)
+    if not index? then index = @node(parent).children.length
+    @node(parent).children.splice(index,0,child)
     @_links.push(new Graph.Link(child,parent))
     return true
 
   # TODO: Make this more efficient?
-  _unlink: (child,parent) =>
+  _unlink: (child, parent) =>
     @node(child).parent = null
     @node(parent).children = (id for id in @node(parent).children when id isnt child)
     @_links = (link for link in @_links when (link.child isnt child or link.parent isnt parent))
@@ -289,9 +306,9 @@ class window.Graph.vis
       $(el).parent().position().top + $(el).outerHeight() /2
 
     # TODO: Decide if edge links should have an id outside of the d3 realm.
-    edges = d3.select("#{@div} .g_lines").selectAll("line").data(@graph._links, (d)-> d.child)
+    edges = d3.select("#{@div} .g_lines").selectAll(".edge").data(@graph._links, (d)-> d.child)
     nodes = d3.select("#{@div} .div_nodes").selectAll(".node-container").data(@graph._nodes, (d)-> d.id)
-    
+
     # Phase 1 - create all the HTML fatness so we know how wide all the elements are going to be.    
     nodes_enter = nodes.enter().append("div").attr("class","node-container")
 
@@ -318,6 +335,7 @@ class window.Graph.vis
       .attr("y2", (d) -> d.d3.child.y)
 
     edges_enter = edges.enter().append("line")
+      .attr("class","edge")
       .attr("data-child", (d) -> d.child)
       .attr("x1", (d) -> d.d3.parent.oldx)
       .attr("y1", (d) -> d.d3.parent.oldy)
@@ -364,3 +382,23 @@ class window.Graph.vis
       .style("left", (d) -> centerLeft(0, this))
       .style("top",  (d) -> centerTop(0, this))
       .style('opacity','0').remove()
+  # aux is an array of auxillary structures.
+  # for now it's just an array of edge-like objects
+  drawAux: (aux)=>
+    # Auxiliary lines
+    aux_lines = d3.select("#{@div} .g_lines").selectAll(".aux").data(aux, (d)-> d.id)
+    aux_lines.enter().append("line")
+      .attr("class","aux")
+      .attr("data-id", (d) -> d.id)
+      .attr("x1", (d) -> d.d3.parent.oldx)
+      .attr("y1", (d) -> d.d3.parent.oldy)
+      .attr("x2", (d) -> d.d3.child.oldx)
+      .attr("y2", (d) -> d.d3.child.oldy)
+
+    aux_lines.transition().duration(0)
+      .attr("x1", (d) -> d.d3.parent.x)
+      .attr("y1", (d) -> d.d3.parent.y)
+      .attr("x2", (d) -> d.d3.child.x)
+      .attr("y2", (d) -> d.d3.child.y)
+
+    aux_lines.exit().remove()
