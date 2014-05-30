@@ -59,6 +59,7 @@ body {
   height : 0;
 }
 #show-instructions {
+  cursor: pointer; 
   -webkit-transition: 0.2s ease;
   -moz-transition: 0.2s ease;
   -ms-transition: 0.2s ease;
