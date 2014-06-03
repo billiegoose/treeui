@@ -118,21 +118,22 @@ $(document).ready () ->
     x = e.originalEvent.clientX-p.left
     y = e.originalEvent.clientY-p.top
     # Find nearest node that is above the cursor
-    candidates = (node for node in graph._nodes when node.d3.y < y)
+    # Add some fudge factor (25) ... we mean "really" above, not just slightly. Slightly above are probably siblings.
+    candidates = (node for node in graph._nodes when node.d3.y < y - 25)
     candidates = (node for node in candidates when not graph.isDescendent(graphUI.dragged,node.id))
     # Nothing nearby
     if candidates.length == 0 
-      graphUI.selected = null
+      graphUI.dropParent = null
       graphUI.drawAux([])
       return
     dists = (Math.pow(node.d3.x - x,2) + Math.pow(node.d3.y - y,2) for node in candidates)
     min_dist = Math.min(dists...)
     min_idx = dists.indexOf(min_dist)
     nearest = candidates[min_idx]
-    graphUI.selected = nearest.id
+    graphUI.dropParent = nearest.id
     # Nearest to itself
-    if graphUI.selected != graphUI.dragged 
-      parent = graph.node(graphUI.selected)
+    if graphUI.dropParent != graphUI.dragged 
+      parent = graph.node(graphUI.dropParent)
       child = graph.node(graphUI.dragged)
       # This fixes the occasional flickering "Can't Drop Here" bug
       y = y - 5
@@ -162,7 +163,7 @@ $(document).ready () ->
   $(document).on "dragenter", ".fa-trash-o", (e) ->
     console.log "dragenter"
     $(this).addClass("dragover")
-    graphUI.selected = null
+    graphUI.dropParent = null
     graphUI.drawAux([])
   $(document).on "dragleave", ".fa-trash-o", (e) ->
     $(this).removeClass("dragover")
@@ -193,14 +194,40 @@ $(document).ready () ->
   $(document).on "drop", "body", (e) ->
     e.stopPropagation()
     e.preventDefault()
+    # Get cursor position relative to #graph
+    p = $('#graph').position()
+    x = e.originalEvent.clientX-p.left
+    y = e.originalEvent.clientY-p.top
     console.log graphUI.dragged
-    console.log graphUI.selected
+    console.log graphUI.dropParent
     # Sanity checks
-    if graphUI.dragged == graphUI.selected then return
-    if graph.isDescendent(graphUI.dragged, graphUI.selected) then return
+    if graphUI.dragged == graphUI.dropParent then return
+    if graph.isDescendent(graphUI.dragged, graphUI.dropParent) then return
     # OK, proceed.
-    graph.moveNode(graphUI.dragged,graphUI.selected)
-    if graphUI.selected is null
+    # Find where among the children to insert it.
+    # Find all children to the right of the mouse. ^H^H^H
+    # No, that doesn't actually work intuitively. We need the angle the children's lines
+    # make with their parent so we know which rays the cursor is in between.
+    angle = (x1,y1,x2,y2)->
+      rise = y1 - y2
+      run  = x1 - x2
+      Math.atan2(rise, run)
+    angleNode = (child, parent)->
+      return angle(child.d3.x, child.d3.y, parent.d3.x, parent.d3.y)
+    parent = graph.node(graphUI.dropParent)
+    mouse_angle = angle(x,y,parent.d3.x,parent.d3.y)
+    children_to_the_right = (child for child in parent.children when angleNode(graph.node(child),parent) < mouse_angle)
+    # Get the index to insert it at.
+    if children_to_the_right.length == 0
+      insert_at =  parent.children.length
+    else
+      insert_before = children_to_the_right[0]
+      insert_at = parent.children.indexOf(insert_before) 
+    # Handle off by one error
+    if graph.node(graphUI.dragged).parent == graphUI.dropParent then insert_at--
+    # Move node
+    graph.moveNode(graphUI.dragged, graphUI.dropParent, insert_at)
+    if graphUI.dropParent is null
       # For aesthetics, we remove the link so it doesn't fly to the trash, which might startle users.
       d3.selectAll("#graph line[data-child='#{graphUI.dragged}']").remove()
     graphUI.redraw()
