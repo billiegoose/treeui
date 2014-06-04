@@ -97,11 +97,6 @@ $(document).ready () ->
   #####################
   # DRAG-DROPPING NODES
   #####################
-  # This is needed to allow for drag-dropping.
-  $(document).on "dragover", (e) ->
-    e.preventDefault()
-    e.stopPropagation()
-    return false
 
   # Trashcan detection code
   intrash = (el)->
@@ -111,24 +106,13 @@ $(document).ready () ->
     trash_y = $(".trashcan").offset().top + $(".trashcan").height()
     el_x < trash_x and el_y < trash_y
 
-  # Drag a node
-  $(document).on "dragstart", ".node", (e) ->
-    graphUI.dragged = parseInt($(this).attr("data-id"))
-    data = 
-      dragged: graphUI.dragged
-      x: e.originalEvent.clientX
-      y: e.originalEvent.clientY
-    setData e, data
-    console.log data
-    return
-
   # Time to pull out the big guns!
   $(document).on "mousedown", ".node", (e) ->
     # TODO: remove graphUI part, rely on closure
     graphUI.dragged = parseInt($(this).attr("data-id"))
     p = $('#graph').position()
-    startx = e.originalEvent.clientX-p.left
-    starty = e.originalEvent.clientY-p.top
+    startx = e.originalEvent.pageX-p.left
+    starty = e.originalEvent.pageY-p.top
     # Start dragging
     dragstart = false
     $(document).on "mousemove.drag", (e) ->
@@ -136,8 +120,8 @@ $(document).ready () ->
       # e.stopPropagation()
       # Get cursor position relative to #graph
       p = $('#graph').position()
-      x = e.originalEvent.clientX-p.left
-      y = e.originalEvent.clientY-p.top
+      x = e.originalEvent.pageX-p.left
+      y = e.originalEvent.pageY-p.top
       # Threshold
       threshold = 25 #px
       dist = Math.sqrt((x-startx)*(x-startx) + (y-starty)*(y-starty))
@@ -224,8 +208,8 @@ $(document).ready () ->
         e.preventDefault()
         # Get cursor position relative to #graph
         p = $('#graph').position()
-        x = e.originalEvent.clientX-p.left
-        y = e.originalEvent.clientY-p.top
+        x = e.originalEvent.pageX-p.left
+        y = e.originalEvent.pageY-p.top
         if graphUI.dropParent is null
           # For aesthetics, we instantly remove the visible link between the node and it's parent
           # so it doesn't fly to the trash, which might startle users.
