@@ -256,6 +256,9 @@ class window.Graph.vis
     left += @padding
     # Alright, too many browsers are having wrapping glitches. Make the minimum width the viewport width.
     left = Math.max($('body').outerWidth(), left)
+    # And to simplify drag-dropping shit around and having visible lines... we'll make this the viewport height as well
+    # TODO: Make this REASONABLE. Right now it's like double the page height for some reason.
+    maxtop = Math.max($('body').outerHeight(), maxtop) 
     maxtop += @padding
     if (cur_width <= left)
       $("#{@div} .graphsvg").css("width",left)
@@ -358,10 +361,10 @@ class window.Graph.vis
       .attr("y2", (d) -> d.d3.y)
 
     edges.exit().transition().duration(500)  
-      .attr("x1", "0")
-      .attr("x2", "0")
-      .attr("y1", "0")
-      .attr("y2", "0")
+      .attr("x1", $(".trashcan").width()/2)
+      .attr("x2", $(".trashcan").width()/2)
+      .attr("y1", $(".trashcan").height()/2)
+      .attr("y2", $(".trashcan").height()/2)
       .style('opacity','0').remove()
 
     nodes.transition().duration(500)
@@ -387,8 +390,8 @@ class window.Graph.vis
       .style("top", (d) -> centerTop(d.d3.y, this))
    
     nodes.exit().transition().duration(500)    
-      .style("left", (d) -> centerLeft(0, this))
-      .style("top",  (d) -> centerTop(0, this))
+      .style("left", (d) -> centerLeft($(".trashcan").width()/2, this))
+      .style("top",  (d) -> centerTop($(".trashcan").height()/2, this))
       .style('opacity','0').remove()
   # aux is an array of auxillary structures.
   # for now it's just an array of edge-like objects
@@ -414,12 +417,11 @@ class window.Graph.vis
     edges = (graph.node(i) for i in graph.descendents(id))
     top_node = graph.node(id)
     nodes = edges.concat [top_node]
-    console.log nodes
 
     edges_divs = d3.select("#{@div} .g_lines").selectAll(".edge").data(edges, (d)-> d.id)
     top_edge = d3.select("#{@div} .g_lines").selectAll(".edge[data-child='#{id}']").datum(top_node, (d)-> d.id)
     node_divs = d3.select("#{@div} .div_nodes").selectAll(".node-container").data(nodes, (d)-> d.id)
-    
+
     node_divs.transition().duration(0)
       .style("left", (d) -> centerLeft(d.d3.x+dx, this))
       .style("top", (d) -> centerTop(d.d3.y+dy, this))
