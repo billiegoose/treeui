@@ -78,3 +78,15 @@ body {
   stroke: gray;
   stroke-width: 3px;
 }
+.graph {
+  -webkit-transition: 0.5s ease;
+  -moz-transition: 0.5s ease;
+  -ms-transition: 0.5s ease;
+  transition: 0.5s ease;
+}
+.graphsvg {  
+  -webkit-transition: 0.5s ease;
+  -moz-transition: 0.5s ease;
+  -ms-transition: 0.5s ease;
+  transition: 0.5s ease;
+}

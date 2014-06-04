@@ -97,114 +97,153 @@ $(document).ready () ->
   #####################
   # DRAG-DROPPING NODES
   #####################
-  # This is needed to allow for drag-dropping.
-  $(document).on "dragover", (e) ->
-    e.preventDefault()
-    e.stopPropagation()
-    return false
 
-  # Drag a node
-  $(document).on "dragstart", ".node", (e) ->
+  # Trashcan detection code
+  intrash = (el)->
+    el_x = $(el).offset().left
+    el_y = $(el).offset().top
+    trash_x = $(".trashcan").offset().left + $(".trashcan").width()
+    trash_y = $(".trashcan").offset().top + $(".trashcan").height()
+    el_x < trash_x and el_y < trash_y
+
+  # Time to pull out the big guns!
+  $(document).on "mousedown", ".node", (e) ->
+    # TODO: remove graphUI part, rely on closure
     graphUI.dragged = parseInt($(this).attr("data-id"))
-    data = {dragged: graphUI.dragged}
-    setData e, data
-    return
-
-  $(document).on "dragover", "body", (e) ->
-    e.preventDefault()
-    e.stopPropagation()
-    # Get cursor position relative to #graph
     p = $('#graph').position()
-    x = e.originalEvent.clientX-p.left
-    y = e.originalEvent.clientY-p.top
-    # Find nearest node that is above the cursor
-    candidates = (node for node in graph._nodes when node.d3.y < y)
-    candidates = (node for node in candidates when not graph.isDescendent(graphUI.dragged,node.id))
-    # Nothing nearby
-    if candidates.length == 0 
-      graphUI.selected = null
-      graphUI.drawAux([])
-      return
-    dists = (Math.pow(node.d3.x - x,2) + Math.pow(node.d3.y - y,2) for node in candidates)
-    min_dist = Math.min(dists...)
-    min_idx = dists.indexOf(min_dist)
-    nearest = candidates[min_idx]
-    graphUI.selected = nearest.id
-    # Nearest to itself
-    if graphUI.selected != graphUI.dragged 
-      parent = graph.node(graphUI.selected)
+    startx = e.originalEvent.pageX-p.left
+    starty = e.originalEvent.pageY-p.top
+    # Start dragging
+    dragstart = false
+    $(document).on "mousemove.drag", (e) ->
+      e.preventDefault()
+      # e.stopPropagation()
+      # Get cursor position relative to #graph
+      p = $('#graph').position()
+      x = e.originalEvent.pageX-p.left
+      y = e.originalEvent.pageY-p.top
+      # Threshold
+      threshold = 10 #px
+      dist = Math.sqrt((x-startx)*(x-startx) + (y-starty)*(y-starty))
+      if dist < threshold and not dragstart
+        return
+      else
+        dragstart = true
+        $(".node[data-id=#{graphUI.dragged}]").attr 'contenteditable', 'false'
+
+      # Draw node in new location.
       child = graph.node(graphUI.dragged)
-      # This fixes the occasional flickering "Can't Drop Here" bug
-      y = y - 5
-      # Draw line from cursor to node.
-      auxline = 
-        d3:
-          parent:
-            oldx: parent.d3.oldx
-            oldy: parent.d3.oldy
-            x:    parent.d3.x
-            y:    parent.d3.y
-          child:
-            oldx: x
-            oldy: y
-            x:    x
-            y:    y
-      graphUI.drawAux([auxline])
-    else
-      graphUI.drawAux([])
-    return true
+      graphUI.drawNodeAt(child.id, x-startx, y-starty)
 
-  # Delete auxillary lines
-  $(document).on "dragend", "body", (e) ->
-    graphUI.drawAux([])
+      if intrash(".node[data-id=#{graphUI.dragged}]")
+        $(".trashcan").addClass("dragover")
+        graphUI.dropParent = null
+        $("#graph .edge[data-child=#{child.id}]")
+          .attr("x1", (d) -> child.d3.x+x-startx)
+          .attr("y1", (d) -> child.d3.y+y-starty)
+        return
+      else
+        $(".trashcan").removeClass("dragover")
 
-  # Make trashcan red on dragover
-  $(document).on "dragenter", ".fa-trash-o", (e) ->
-    console.log "dragenter"
-    $(this).addClass("dragover")
-    graphUI.selected = null
-    graphUI.drawAux([])
-  $(document).on "dragleave", ".fa-trash-o", (e) ->
-    $(this).removeClass("dragover")
+      # Find nearest node that is above the cursor
+      dist = (d)->
+        Math.sqrt(Math.pow(d.d3.x - x,2) + Math.pow(d.d3.y - y,2))
+      candidates = (node for node in graph._nodes when Math.abs(node.d3.y - y + graphUI.h) < graphUI.h/2)
+      # candidates = (node for node in candidates when dist(node) < 150)
+      candidates = (node for node in candidates when not graph.isDescendent(graphUI.dragged,node.id))
+      # Nothing nearby
+      if candidates.length == 0 
+        graphUI.dropParent = null
+        $("#graph .edge[data-child=#{child.id}]")
+          .attr("x1", (d) -> child.d3.x+x-startx)
+          .attr("y1", (d) -> child.d3.y+y-starty)
+        return
 
-  $(document).on "dragover", ".trashcan", (e) ->
-    e.stopPropagation();
-    e.preventDefault();
+      dists = (dist(node) for node in candidates)
+      min_dist = Math.min(dists...)
+      min_idx = dists.indexOf(min_dist)
+      nearest = candidates[min_idx]
+      graphUI.dropParent = nearest.id
+      # Nearest to itself
+      if graphUI.dropParent != graphUI.dragged 
+        parent = graph.node(graphUI.dropParent)
+        # This fixes the occasional flickering "Can't Drop Here" bug
+        y = y - 5
+        $("#graph .edge[data-child=#{child.id}]")
+          .attr("x1", (d) -> parent.d3.x)
+          .attr("y1", (d) -> parent.d3.y)
+        angle = (x1,y1,x2,y2)->
+          rise = y1 - y2
+          run  = x1 - x2
+          Math.atan2(rise, run)
+        angleNode = (child, parent)->
+          return angle(child.d3.x, child.d3.y, parent.d3.x, parent.d3.y)
+        child = graph.node(graphUI.dragged)
+        parent = graph.node(graphUI.dropParent)
+        mouse_angle = angle(child.d3.x+x-startx, child.d3.y+y-starty, parent.d3.x, parent.d3.y)
+        children_to_the_left = (child for child in parent.children when angleNode(graph.node(child),parent) > mouse_angle and child isnt graphUI.dragged)
+      return true
 
-  # Drop a node on the trashcan
-  $(document).on "drop", ".fa-trash-o", (e) ->
-    e.stopPropagation()
-    e.preventDefault()
-    deleteAll = (id)->
-      node = graph.node(id)
-      if node.children.length > 0
-        deleteAll child for child in node.children
-      graph.removeNode(id)
-    deleteAll(graphUI.dragged)
-    # For aesthetics, we instantly remove the visible link between the node and it's parent.
-    d3.selectAll("#graph line[data-child='#{graphUI.dragged}']").remove()
-    graphUI.redraw()
-    setTimeout () ->
-      $("#trashcan").removeClass("dragover")
-    , 500
-    return
-
-  # Move a node when the node is dropped
-  $(document).on "drop", "body", (e) ->
-    e.stopPropagation()
-    e.preventDefault()
-    console.log graphUI.dragged
-    console.log graphUI.selected
-    # Sanity checks
-    if graphUI.dragged == graphUI.selected then return
-    if graph.isDescendent(graphUI.dragged, graphUI.selected) then return
-    # OK, proceed.
-    graph.moveNode(graphUI.dragged,graphUI.selected)
-    if graphUI.selected is null
-      # For aesthetics, we remove the link so it doesn't fly to the trash, which might startle users.
-      d3.selectAll("#graph line[data-child='#{graphUI.dragged}']").remove()
-    graphUI.redraw()
-    return
+    # Stop dragging
+    $(document).on "mouseup", (e) ->
+      # Remove handler
+      $(document).off "mousemove.drag"
+      $(".node[data-id=#{graphUI.dragged}]").attr 'contenteditable', 'true'
+      # Do stuff
+      if dragstart
+        # Do drag drop             
+        dragstart = false   
+        e.stopPropagation()
+        e.preventDefault()
+        # Get cursor position relative to #graph
+        p = $('#graph').position()
+        x = e.originalEvent.pageX-p.left
+        y = e.originalEvent.pageY-p.top
+        if graphUI.dropParent is null
+          # For aesthetics, we instantly remove the visible link between the node and it's parent
+          # so it doesn't fly to the trash, which might startle users.
+          d3.selectAll("#graph line[data-child='#{graphUI.dragged}']").remove()
+          # Did we drop it in the trash?
+          if intrash(".node[data-id=#{graphUI.dragged}]")
+            deleteAll = (id)->
+              node = graph.node(id)
+              if node.children.length > 0
+                deleteAll child for child in node.children
+              graph.removeNode(id)
+            deleteAll(graphUI.dragged)
+            setTimeout () ->
+              $("#trashcan").removeClass("dragover")
+            , 500
+          else
+            graph.moveNode(graphUI.dragged, graphUI.dropParent)
+          graphUI.redraw()
+          return
+        else
+          # Sanity checks
+          if graphUI.dragged == graphUI.dropParent then return
+          if graph.isDescendent(graphUI.dragged, graphUI.dropParent) then return
+          # OK, proceed.
+          # Find where among the children to insert it.
+          # Find all children to the right of the mouse. ^H^H^H
+          # No, that doesn't actually work intuitively. We need the angle the children's lines
+          # make with their parent so we know which rays the cursor is in between.
+          angle = (x1,y1,x2,y2)->
+            rise = y1 - y2
+            run  = x1 - x2
+            Math.atan2(rise, run)
+          angleNode = (child, parent)->
+            return angle(child.d3.x, child.d3.y, parent.d3.x, parent.d3.y)
+          child = graph.node(graphUI.dragged)
+          parent = graph.node(graphUI.dropParent)
+          mouse_angle = angle(child.d3.x+x-startx, child.d3.y+y-starty, parent.d3.x, parent.d3.y)
+          children_to_the_left = (child for child in parent.children when angleNode(graph.node(child),parent) > mouse_angle and child isnt graphUI.dragged)
+          insert_at = children_to_the_left.length
+          # Move node
+          graph.moveNode(graphUI.dragged, graphUI.dropParent, insert_at)
+        graphUI.redraw()
+        graphUI.dragged = null
+        return
+    return  
 
   ###########################
   # SAVING AND LOADING GRAPHS
