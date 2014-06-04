@@ -3,7 +3,7 @@
   var getData, resetFormElement, setData;
 
   $(document).ready(function() {
-    var child1, child2, newroot;
+    var child1, child2, intrash, newroot;
     window.graph = new Graph;
     window.graphUI = new Graph.vis(graph, $('#graph'));
     window.graph = graph;
@@ -74,148 +74,205 @@
       graph.addNode("?", node);
       return graphUI.redraw();
     });
-    $(document).on("dragover", function(e) {
-      e.preventDefault();
-      e.stopPropagation();
-      return false;
-    });
-    $(document).on("dragstart", ".node", function(e) {
-      var data;
+    intrash = function(el) {
+      var el_x, el_y, trash_x, trash_y;
+      el_x = $(el).offset().left;
+      el_y = $(el).offset().top;
+      trash_x = $(".trashcan").offset().left + $(".trashcan").width();
+      trash_y = $(".trashcan").offset().top + $(".trashcan").height();
+      return el_x < trash_x && el_y < trash_y;
+    };
+    $(document).on("mousedown", ".node", function(e) {
+      var dragstart, p, startx, starty;
       graphUI.dragged = parseInt($(this).attr("data-id"));
-      data = {
-        dragged: graphUI.dragged
-      };
-      setData(e, data);
-    });
-    $(document).on("dragover", "body", function(e) {
-      var auxline, candidates, child, dists, min_dist, min_idx, nearest, node, p, parent, x, y;
-      e.preventDefault();
-      e.stopPropagation();
       p = $('#graph').position();
-      x = e.originalEvent.clientX - p.left;
-      y = e.originalEvent.clientY - p.top;
-      candidates = (function() {
-        var _i, _len, _ref, _results;
-        _ref = graph._nodes;
-        _results = [];
-        for (_i = 0, _len = _ref.length; _i < _len; _i++) {
-          node = _ref[_i];
-          if (node.d3.y < y) {
-            _results.push(node);
-          }
+      startx = e.originalEvent.pageX - p.left;
+      starty = e.originalEvent.pageY - p.top;
+      dragstart = false;
+      $(document).on("mousemove.drag", function(e) {
+        var angle, angleNode, candidates, child, children_to_the_left, dist, dists, min_dist, min_idx, mouse_angle, nearest, node, parent, threshold, x, y;
+        e.preventDefault();
+        p = $('#graph').position();
+        x = e.originalEvent.pageX - p.left;
+        y = e.originalEvent.pageY - p.top;
+        threshold = 10;
+        dist = Math.sqrt((x - startx) * (x - startx) + (y - starty) * (y - starty));
+        if (dist < threshold && !dragstart) {
+          return;
+        } else {
+          dragstart = true;
+          $(".node[data-id=" + graphUI.dragged + "]").attr('contenteditable', 'false');
         }
-        return _results;
-      })();
-      candidates = (function() {
-        var _i, _len, _results;
-        _results = [];
-        for (_i = 0, _len = candidates.length; _i < _len; _i++) {
-          node = candidates[_i];
-          if (!graph.isDescendent(graphUI.dragged, node.id)) {
-            _results.push(node);
-          }
-        }
-        return _results;
-      })();
-      if (candidates.length === 0) {
-        graphUI.selected = null;
-        graphUI.drawAux([]);
-        return;
-      }
-      dists = (function() {
-        var _i, _len, _results;
-        _results = [];
-        for (_i = 0, _len = candidates.length; _i < _len; _i++) {
-          node = candidates[_i];
-          _results.push(Math.pow(node.d3.x - x, 2) + Math.pow(node.d3.y - y, 2));
-        }
-        return _results;
-      })();
-      min_dist = Math.min.apply(Math, dists);
-      min_idx = dists.indexOf(min_dist);
-      nearest = candidates[min_idx];
-      graphUI.selected = nearest.id;
-      if (graphUI.selected !== graphUI.dragged) {
-        parent = graph.node(graphUI.selected);
         child = graph.node(graphUI.dragged);
-        y = y - 5;
-        auxline = {
-          d3: {
-            parent: {
-              oldx: parent.d3.oldx,
-              oldy: parent.d3.oldy,
-              x: parent.d3.x,
-              y: parent.d3.y
-            },
-            child: {
-              oldx: x,
-              oldy: y,
-              x: x,
-              y: y
+        graphUI.drawNodeAt(child.id, x - startx, y - starty);
+        if (intrash(".node[data-id=" + graphUI.dragged + "]")) {
+          $(".trashcan").addClass("dragover");
+          graphUI.dropParent = null;
+          $("#graph .edge[data-child=" + child.id + "]").attr("x1", function(d) {
+            return child.d3.x + x - startx;
+          }).attr("y1", function(d) {
+            return child.d3.y + y - starty;
+          });
+          return;
+        } else {
+          $(".trashcan").removeClass("dragover");
+        }
+        dist = function(d) {
+          return Math.sqrt(Math.pow(d.d3.x - x, 2) + Math.pow(d.d3.y - y, 2));
+        };
+        candidates = (function() {
+          var _i, _len, _ref, _results;
+          _ref = graph._nodes;
+          _results = [];
+          for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+            node = _ref[_i];
+            if (Math.abs(node.d3.y - y + graphUI.h) < graphUI.h / 2) {
+              _results.push(node);
             }
           }
-        };
-        graphUI.drawAux([auxline]);
-      } else {
-        graphUI.drawAux([]);
-      }
-      return true;
-    });
-    $(document).on("dragend", "body", function(e) {
-      return graphUI.drawAux([]);
-    });
-    $(document).on("dragenter", ".fa-trash-o", function(e) {
-      console.log("dragenter");
-      $(this).addClass("dragover");
-      graphUI.selected = null;
-      return graphUI.drawAux([]);
-    });
-    $(document).on("dragleave", ".fa-trash-o", function(e) {
-      return $(this).removeClass("dragover");
-    });
-    $(document).on("dragover", ".trashcan", function(e) {
-      e.stopPropagation();
-      return e.preventDefault();
-    });
-    $(document).on("drop", ".fa-trash-o", function(e) {
-      var deleteAll;
-      e.stopPropagation();
-      e.preventDefault();
-      deleteAll = function(id) {
-        var child, node, _i, _len, _ref;
-        node = graph.node(id);
-        if (node.children.length > 0) {
-          _ref = node.children;
-          for (_i = 0, _len = _ref.length; _i < _len; _i++) {
-            child = _ref[_i];
-            deleteAll(child);
+          return _results;
+        })();
+        candidates = (function() {
+          var _i, _len, _results;
+          _results = [];
+          for (_i = 0, _len = candidates.length; _i < _len; _i++) {
+            node = candidates[_i];
+            if (!graph.isDescendent(graphUI.dragged, node.id)) {
+              _results.push(node);
+            }
           }
+          return _results;
+        })();
+        if (candidates.length === 0) {
+          graphUI.dropParent = null;
+          $("#graph .edge[data-child=" + child.id + "]").attr("x1", function(d) {
+            return child.d3.x + x - startx;
+          }).attr("y1", function(d) {
+            return child.d3.y + y - starty;
+          });
+          return;
         }
-        return graph.removeNode(id);
-      };
-      deleteAll(graphUI.dragged);
-      d3.selectAll("#graph line[data-child='" + graphUI.dragged + "']").remove();
-      graphUI.redraw();
-      setTimeout(function() {
-        return $("#trashcan").removeClass("dragover");
-      }, 500);
-    });
-    $(document).on("drop", "body", function(e) {
-      e.stopPropagation();
-      e.preventDefault();
-      console.log(graphUI.dragged);
-      console.log(graphUI.selected);
-      if (graphUI.dragged === graphUI.selected) {
-        return;
-      }
-      if (graph.isDescendent(graphUI.dragged, graphUI.selected)) {
-        return;
-      }
-      graph.moveNode(graphUI.dragged, graphUI.selected);
-      if (graphUI.selected === null) {
-        d3.selectAll("#graph line[data-child='" + graphUI.dragged + "']").remove();
-      }
-      graphUI.redraw();
+        dists = (function() {
+          var _i, _len, _results;
+          _results = [];
+          for (_i = 0, _len = candidates.length; _i < _len; _i++) {
+            node = candidates[_i];
+            _results.push(dist(node));
+          }
+          return _results;
+        })();
+        min_dist = Math.min.apply(Math, dists);
+        min_idx = dists.indexOf(min_dist);
+        nearest = candidates[min_idx];
+        graphUI.dropParent = nearest.id;
+        if (graphUI.dropParent !== graphUI.dragged) {
+          parent = graph.node(graphUI.dropParent);
+          y = y - 5;
+          $("#graph .edge[data-child=" + child.id + "]").attr("x1", function(d) {
+            return parent.d3.x;
+          }).attr("y1", function(d) {
+            return parent.d3.y;
+          });
+          angle = function(x1, y1, x2, y2) {
+            var rise, run;
+            rise = y1 - y2;
+            run = x1 - x2;
+            return Math.atan2(rise, run);
+          };
+          angleNode = function(child, parent) {
+            return angle(child.d3.x, child.d3.y, parent.d3.x, parent.d3.y);
+          };
+          child = graph.node(graphUI.dragged);
+          parent = graph.node(graphUI.dropParent);
+          mouse_angle = angle(child.d3.x + x - startx, child.d3.y + y - starty, parent.d3.x, parent.d3.y);
+          children_to_the_left = (function() {
+            var _i, _len, _ref, _results;
+            _ref = parent.children;
+            _results = [];
+            for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+              child = _ref[_i];
+              if (angleNode(graph.node(child), parent) > mouse_angle && child !== graphUI.dragged) {
+                _results.push(child);
+              }
+            }
+            return _results;
+          })();
+        }
+        return true;
+      });
+      $(document).on("mouseup", function(e) {
+        var angle, angleNode, child, children_to_the_left, deleteAll, insert_at, mouse_angle, parent, x, y;
+        $(document).off("mousemove.drag");
+        $(".node[data-id=" + graphUI.dragged + "]").attr('contenteditable', 'true');
+        if (dragstart) {
+          dragstart = false;
+          e.stopPropagation();
+          e.preventDefault();
+          p = $('#graph').position();
+          x = e.originalEvent.pageX - p.left;
+          y = e.originalEvent.pageY - p.top;
+          if (graphUI.dropParent === null) {
+            d3.selectAll("#graph line[data-child='" + graphUI.dragged + "']").remove();
+            if (intrash(".node[data-id=" + graphUI.dragged + "]")) {
+              deleteAll = function(id) {
+                var child, node, _i, _len, _ref;
+                node = graph.node(id);
+                if (node.children.length > 0) {
+                  _ref = node.children;
+                  for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+                    child = _ref[_i];
+                    deleteAll(child);
+                  }
+                }
+                return graph.removeNode(id);
+              };
+              deleteAll(graphUI.dragged);
+              setTimeout(function() {
+                return $("#trashcan").removeClass("dragover");
+              }, 500);
+            } else {
+              graph.moveNode(graphUI.dragged, graphUI.dropParent);
+            }
+            graphUI.redraw();
+            return;
+          } else {
+            if (graphUI.dragged === graphUI.dropParent) {
+              return;
+            }
+            if (graph.isDescendent(graphUI.dragged, graphUI.dropParent)) {
+              return;
+            }
+            angle = function(x1, y1, x2, y2) {
+              var rise, run;
+              rise = y1 - y2;
+              run = x1 - x2;
+              return Math.atan2(rise, run);
+            };
+            angleNode = function(child, parent) {
+              return angle(child.d3.x, child.d3.y, parent.d3.x, parent.d3.y);
+            };
+            child = graph.node(graphUI.dragged);
+            parent = graph.node(graphUI.dropParent);
+            mouse_angle = angle(child.d3.x + x - startx, child.d3.y + y - starty, parent.d3.x, parent.d3.y);
+            children_to_the_left = (function() {
+              var _i, _len, _ref, _results;
+              _ref = parent.children;
+              _results = [];
+              for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+                child = _ref[_i];
+                if (angleNode(graph.node(child), parent) > mouse_angle && child !== graphUI.dragged) {
+                  _results.push(child);
+                }
+              }
+              return _results;
+            })();
+            insert_at = children_to_the_left.length;
+            graph.moveNode(graphUI.dragged, graphUI.dropParent, insert_at);
+          }
+          graphUI.redraw();
+          graphUI.dragged = null;
+        }
+      });
     });
     $("#download").on("click", function(e) {
       var blob, text;

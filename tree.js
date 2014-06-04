@@ -163,6 +163,19 @@
       }
     };
 
+    Graph.prototype.descendents = function(id) {
+      var child, list, me, _i, _len, _ref;
+      me = this.node(id);
+      list = [];
+      list.push.apply(list, me.children);
+      _ref = me.children;
+      for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+        child = _ref[_i];
+        list.push.apply(list, this.descendents(child));
+      }
+      return list;
+    };
+
     Graph.prototype.isDescendent = function(pid, cid) {
       if (cid === null) {
         return false;
@@ -266,6 +279,7 @@
       this.isCycle = __bind(this.isCycle, this);
       this.isConnected = __bind(this.isConnected, this);
       this.isDescendent = __bind(this.isDescendent, this);
+      this.descendents = __bind(this.descendents, this);
       this.depth = __bind(this.depth, this);
       this.roots = __bind(this.roots, this);
       this.leaves = __bind(this.leaves, this);
@@ -299,10 +313,14 @@
   })();
 
   window.Graph.vis = (function() {
+    var centerLeft, centerTop, currentCenterLeft, currentCenterTop,
+      _this = this;
+
     function vis(graph, div) {
       var d3, self;
       this.graph = graph;
       this.div = div;
+      this.drawNodeAt = __bind(this.drawNodeAt, this);
       this.drawAux = __bind(this.drawAux, this);
       this.redraw = __bind(this.redraw, this);
       this.reposition = __bind(this.reposition, this);
@@ -400,6 +418,7 @@
       cur_height = $("" + this.div + " .graphsvg").outerHeight();
       left += this.padding;
       left = Math.max($('body').outerWidth(), left);
+      maxtop = Math.max($('body').outerHeight(), maxtop);
       maxtop += this.padding;
       if (cur_width <= left) {
         $("" + this.div + " .graphsvg").css("width", left);
@@ -426,6 +445,7 @@
         parent = this.graph.node(link.parent);
         child = this.graph.node(link.child);
         _results.push(link.d3 = {
+          id: child.id,
           parent: {
             oldx: parent.d3.oldx,
             oldy: parent.d3.oldy,
@@ -443,40 +463,43 @@
       return _results;
     };
 
+    centerLeft = function(x, el) {
+      if (x === null) {
+        return x;
+      }
+      if ($(el).hasClass("node-container")) {
+        el = $(el).find(".node");
+      }
+      return x - $(el).outerWidth() / 2 + "px";
+    };
+
+    centerTop = function(y, el) {
+      if (y === null) {
+        return y;
+      }
+      if ($(el).hasClass("node-container")) {
+        el = $(el).find(".node");
+      }
+      return y - $(el).outerHeight() / 2 + "px";
+    };
+
+    currentCenterLeft = function(id) {
+      var el;
+      el = $(vis.div).find(".node[data-id=" + id + "]");
+      return $(el).parent().position().left + $(el).outerWidth() / 2;
+    };
+
+    currentCenterTop = function(id) {
+      var el;
+      el = $(vis.div).find(".node[data-id=" + id + "]");
+      return $(el).parent().position().top + $(el).outerHeight() / 2;
+    };
+
     vis.prototype.redraw = function() {
-      var centerLeft, centerTop, currentCenterLeft, currentCenterTop, edges, edges_enter, nodes, nodes_enter, self,
-        _this = this;
+      var edges, edges_enter, nodes, nodes_enter, self;
       self = this;
-      centerLeft = function(x, el) {
-        if (x === null) {
-          return x;
-        }
-        if ($(el).hasClass("node-container")) {
-          el = $(el).find(".node");
-        }
-        return x - $(el).outerWidth() / 2 + "px";
-      };
-      centerTop = function(y, el) {
-        if (y === null) {
-          return y;
-        }
-        if ($(el).hasClass("node-container")) {
-          el = $(el).find(".node");
-        }
-        return y - $(el).outerHeight() / 2 + "px";
-      };
-      currentCenterLeft = function(id) {
-        var el;
-        el = $(_this.div).find(".node[data-id=" + id + "]");
-        return $(el).parent().position().left + $(el).outerWidth() / 2;
-      };
-      currentCenterTop = function(id) {
-        var el;
-        el = $(_this.div).find(".node[data-id=" + id + "]");
-        return $(el).parent().position().top + $(el).outerHeight() / 2;
-      };
-      edges = d3.select("" + this.div + " .g_lines").selectAll(".edge").data(this.graph._links, function(d) {
-        return d.child;
+      edges = d3.select("" + this.div + " .g_lines").selectAll(".edge").data(this.graph._nodes, function(d) {
+        return d.id;
       });
       nodes = d3.select("" + this.div + " .div_nodes").selectAll(".node-container").data(this.graph._nodes, function(d) {
         return d.id;
@@ -496,35 +519,43 @@
       });
       this.reposition();
       edges.transition().duration(500).attr("x1", function(d) {
-        return d.d3.parent.x;
+        var _ref, _ref1, _ref2;
+        return (_ref = (_ref1 = graph.node(d.parent)) != null ? (_ref2 = _ref1.d3) != null ? _ref2.x : void 0 : void 0) != null ? _ref : d.d3.x;
       }).attr("y1", function(d) {
-        return d.d3.parent.y;
+        var _ref, _ref1, _ref2;
+        return (_ref = (_ref1 = graph.node(d.parent)) != null ? (_ref2 = _ref1.d3) != null ? _ref2.y : void 0 : void 0) != null ? _ref : d.d3.y;
       }).attr("x2", function(d) {
-        return d.d3.child.x;
+        return d.d3.x;
       }).attr("y2", function(d) {
-        return d.d3.child.y;
+        return d.d3.y;
       });
       edges_enter = edges.enter().append("line").attr("class", "edge").attr("data-child", function(d) {
-        return d.child;
+        return d.id;
       }).attr("x1", function(d) {
-        return d.d3.parent.oldx;
+        var _ref, _ref1, _ref2;
+        return (_ref = (_ref1 = graph.node(d.parent)) != null ? (_ref2 = _ref1.d3) != null ? _ref2.oldx : void 0 : void 0) != null ? _ref : d.d3.oldx;
       }).attr("y1", function(d) {
-        return d.d3.parent.oldy;
+        var _ref, _ref1, _ref2;
+        return (_ref = (_ref1 = graph.node(d.parent)) != null ? (_ref2 = _ref1.d3) != null ? _ref2.oldy : void 0 : void 0) != null ? _ref : d.d3.oldy;
       }).attr("x2", function(d) {
-        return d.d3.parent.oldx;
+        var _ref, _ref1, _ref2;
+        return (_ref = (_ref1 = graph.node(d.parent)) != null ? (_ref2 = _ref1.d3) != null ? _ref2.oldx : void 0 : void 0) != null ? _ref : d.d3.oldx;
       }).attr("y2", function(d) {
-        return d.d3.parent.oldy;
+        var _ref, _ref1, _ref2;
+        return (_ref = (_ref1 = graph.node(d.parent)) != null ? (_ref2 = _ref1.d3) != null ? _ref2.oldy : void 0 : void 0) != null ? _ref : d.d3.oldy;
       });
       edges_enter.transition().duration(500).attr("x1", function(d) {
-        return d.d3.parent.x;
+        var _ref, _ref1, _ref2;
+        return (_ref = (_ref1 = graph.node(d.parent)) != null ? (_ref2 = _ref1.d3) != null ? _ref2.x : void 0 : void 0) != null ? _ref : d.d3.x;
       }).attr("y1", function(d) {
-        return d.d3.parent.y;
+        var _ref, _ref1, _ref2;
+        return (_ref = (_ref1 = graph.node(d.parent)) != null ? (_ref2 = _ref1.d3) != null ? _ref2.y : void 0 : void 0) != null ? _ref : d.d3.y;
       }).attr("x2", function(d) {
-        return d.d3.child.x;
+        return d.d3.x;
       }).attr("y2", function(d) {
-        return d.d3.child.y;
+        return d.d3.y;
       });
-      edges.exit().transition().duration(500).attr("x1", "0").attr("x2", "0").attr("y1", "0").attr("y2", "0").style('opacity', '0').remove();
+      edges.exit().transition().duration(500).attr("x1", $(".trashcan").width() / 2).attr("x2", $(".trashcan").width() / 2).attr("y1", $(".trashcan").height() / 2).attr("y2", $(".trashcan").height() / 2).style('opacity', '0').remove();
       nodes.transition().duration(500).style("left", function(d) {
         return centerLeft(d.d3.x, this);
       }).style("top", function(d) {
@@ -549,9 +580,9 @@
         return centerTop(d.d3.y, this);
       });
       return nodes.exit().transition().duration(500).style("left", function(d) {
-        return centerLeft(0, this);
+        return centerLeft($(".trashcan").width() / 2, this);
       }).style("top", function(d) {
-        return centerTop(0, this);
+        return centerTop($(".trashcan").height() / 2, this);
       }).style('opacity', '0').remove();
     };
 
@@ -583,9 +614,61 @@
       return aux_lines.exit().remove();
     };
 
+    vis.prototype.drawNodeAt = function(id, dx, dy) {
+      var edges, edges_divs, i, node_divs, nodes, top_edge, top_node;
+      edges = (function() {
+        var _i, _len, _ref, _results;
+        _ref = graph.descendents(id);
+        _results = [];
+        for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+          i = _ref[_i];
+          _results.push(graph.node(i));
+        }
+        return _results;
+      })();
+      top_node = graph.node(id);
+      nodes = edges.concat([top_node]);
+      edges_divs = d3.select("" + this.div + " .g_lines").selectAll(".edge").data(edges, function(d) {
+        return d.id;
+      });
+      top_edge = d3.select("" + this.div + " .g_lines").selectAll(".edge[data-child='" + id + "']").datum(top_node, function(d) {
+        return d.id;
+      });
+      node_divs = d3.select("" + this.div + " .div_nodes").selectAll(".node-container").data(nodes, function(d) {
+        return d.id;
+      });
+      node_divs.transition().duration(0).style("left", function(d) {
+        return centerLeft(d.d3.x + dx, this);
+      }).style("top", function(d) {
+        return centerTop(d.d3.y + dy, this);
+      });
+      edges_divs.transition().duration(0).attr("x1", function(d) {
+        if (d.parent != null) {
+          return graph.node(d.parent).d3.x + dx;
+        } else {
+          return d.d3.x + dx;
+        }
+      }).attr("y1", function(d) {
+        if (d.parent != null) {
+          return graph.node(d.parent).d3.y + dy;
+        } else {
+          return d.d3.y + dy;
+        }
+      }).attr("x2", function(d) {
+        return d.d3.x + dx;
+      }).attr("y2", function(d) {
+        return d.d3.y + dy;
+      });
+      top_edge.transition().duration(0).attr("x2", function(d) {
+        return d.d3.x + dx;
+      }).attr("y2", function(d) {
+        return d.d3.y + dy;
+      });
+    };
+
     return vis;
 
-  })();
+  }).call(this);
 
 }).call(this);
 
