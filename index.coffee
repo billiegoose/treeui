@@ -123,7 +123,7 @@ $(document).ready () ->
       x = e.originalEvent.pageX-p.left
       y = e.originalEvent.pageY-p.top
       # Threshold
-      threshold = 25 #px
+      threshold = 10 #px
       dist = Math.sqrt((x-startx)*(x-startx) + (y-starty)*(y-starty))
       if dist < threshold and not dragstart
         return
@@ -148,9 +148,8 @@ $(document).ready () ->
       # Find nearest node that is above the cursor
       dist = (d)->
         Math.sqrt(Math.pow(d.d3.x - x,2) + Math.pow(d.d3.y - y,2))
-      # Add some fudge factor (25) ... we mean "really" above, not just slightly. Slightly above are probably siblings.
-      candidates = (node for node in graph._nodes when node.d3.y < y - 25)
-      candidates = (node for node in candidates when dist(node) < 150)
+      candidates = (node for node in graph._nodes when Math.abs(node.d3.y - y + graphUI.h) < graphUI.h/2)
+      # candidates = (node for node in candidates when dist(node) < 150)
       candidates = (node for node in candidates when not graph.isDescendent(graphUI.dragged,node.id))
       # Nothing nearby
       if candidates.length == 0 
