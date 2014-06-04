@@ -125,14 +125,7 @@ $(document).ready () ->
       # Threshold
       threshold = 25 #px
       dist = Math.sqrt((x-startx)*(x-startx) + (y-starty)*(y-starty))
-      console.log dist
-      if dist < threshold 
-        if dragstart
-          # Restore everything
-          child = graph.node(graphUI.dragged)
-          graphUI.drawNodeAt(child.id, child.d3.x, child.d3.y)
-          dragstart = false
-          $(".node[data-id=#{graphUI.dragged}]").attr 'contenteditable', 'true'
+      if dist < threshold and not dragstart
         return
       else
         dragstart = true
@@ -143,7 +136,6 @@ $(document).ready () ->
       graphUI.drawNodeAt(child.id, x-startx, y-starty)
 
       if intrash(".node[data-id=#{graphUI.dragged}]")
-        console.log "dragenter"
         $(".trashcan").addClass("dragover")
         graphUI.dropParent = null
         $("#graph .edge[data-child=#{child.id}]")
@@ -170,7 +162,6 @@ $(document).ready () ->
 
       dists = (dist(node) for node in candidates)
       min_dist = Math.min(dists...)
-      console.log "min_dist: " + min_dist
       min_idx = dists.indexOf(min_dist)
       nearest = candidates[min_idx]
       graphUI.dropParent = nearest.id
@@ -196,7 +187,6 @@ $(document).ready () ->
 
     # Stop dragging
     $(document).on "mouseup", (e) ->
-      console.log "Mouseup!"
       # Remove handler
       $(document).off "mousemove.drag"
       $(".node[data-id=#{graphUI.dragged}]").attr 'contenteditable', 'true'
@@ -216,7 +206,6 @@ $(document).ready () ->
           d3.selectAll("#graph line[data-child='#{graphUI.dragged}']").remove()
           # Did we drop it in the trash?
           if intrash(".node[data-id=#{graphUI.dragged}]")
-            console.log "AGH"
             deleteAll = (id)->
               node = graph.node(id)
               if node.children.length > 0
@@ -250,7 +239,6 @@ $(document).ready () ->
           mouse_angle = angle(child.d3.x+x-startx, child.d3.y+y-starty, parent.d3.x, parent.d3.y)
           children_to_the_left = (child for child in parent.children when angleNode(graph.node(child),parent) > mouse_angle and child isnt graphUI.dragged)
           insert_at = children_to_the_left.length
-          console.log "insert_at: " + insert_at
           # Move node
           graph.moveNode(graphUI.dragged, graphUI.dropParent, insert_at)
         graphUI.redraw()
